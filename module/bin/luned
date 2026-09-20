@@ -1,0 +1,129 @@
+#!/system/bin/sh
+#
+# Lune Bridge - boot service.
+#
+# This daemon does far less than you might expect, and that is the design.
+#
+# The display suite's warmth and dimming are driven through Android's own
+# secure settings, which the framework persists and restores by itself. Quiet
+# Field's app rules are appops, which the framework also persists. Neither
+# needs holding up, so neither has a polling loop.
+#
+# What is actually left:
+#
+#   * the failed-boot guard, because anything that can set a screen to
+#     near-black at boot needs a way out that does not require seeing it;
+#   * the raw panel override, the one display setting the framework will fight
+#     over, and only while it is active;
+#   * the Quiet Field scheduler, which wakes on a cadence the engine chooses -
+#     once an hour when nothing is configured, once a minute during quiet
+#     hours, and faster only if the notification watcher is deliberately on.
+
+. "${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}/lib/quiet.sh"
+
+# How long to wait for the framework before giving up on the first apply.
+BOOT_TIMEOUT=120
+
+# Poll interval while holding a raw panel override. Fast enough that a stomped
+# value is corrected within a frame or two, slow enough to be invisible on
+# battery.
+HOLD_INTERVAL=1
+
+# Interval when there is nothing to hold.
+IDLE_INTERVAL=30
+
+wait_for_boot() {
+    _waited=0
+    while [ "$_waited" -lt "$BOOT_TIMEOUT" ]; do
+        if [ "$(getprop sys.boot_completed)" = "1" ]; then
+            # boot_completed fires before settings reliably accepts writes.
+            sleep 5
+            return 0
+        fi
+        sleep 2
+        _waited=$(( _waited + 2 ))
+    done
+    return 1
+}
+
+# If the previous boot set the guard and never cleared it, that boot did not
+# finish. Rather than reapply whatever caused it, stand down and leave the
+# device in a stock state the user can see well enough to fix.
+check_boot_guard() {
+    if [ -f "$LUNE_BOOT_GUARD" ]; then
+        log "guard: previous boot did not complete - standing down"
+        : > "$LUNE_CONF"
+        rm -f "$LUNE_BOOT_GUARD"
+        cap_set safe_mode yes
+        return 1
+    fi
+    : > "$LUNE_BOOT_GUARD"
+    return 0
+}
+
+clear_boot_guard() {
+    rm -f "$LUNE_BOOT_GUARD"
+    cap_set safe_mode no
+}
+
+hold_backlight() {
+    _node=$(cap_get backlight_node)
+    _want=$(conf_get backlight_raw)
+    [ -n "$_node" ] && [ -n "$_want" ] || return 1
+    _now=$(node_read "$_node/brightness")
+    [ "$_now" = "$_want" ] && return 0
+    node_write "$_node/brightness" "$_want"
+}
+
+main() {
+    ensure_dirs
+    log "luned: starting"
+
+    if ! wait_for_boot; then
+        log "luned: framework never reported boot_completed - giving up"
+        exit 1
+    fi
+
+    if ! check_boot_guard; then
+        echo "Lune stood down after a failed boot. Settings were cleared." \
+            > "$LUNE_DIR/last-boot-message"
+        exit 0
+    fi
+
+    "$LUNE_MODDIR/bin/lune-probe" -q
+    quiet_probe_ops
+    "$LUNE_MODDIR/bin/lunectl" apply
+
+    # appops survive reboots, but the DND bypass list and the quiet window do
+    # not re-evaluate themselves, so give the scheduler an immediate look
+    # rather than leaving the first minute of a boot un-quieted.
+    quiet_tick
+    quiet_stats_trim
+
+    # Boot got far enough to apply settings without the device falling over.
+    sleep 20
+    clear_boot_guard
+    log "luned: boot guard cleared"
+
+    _elapsed=0
+    while true; do
+        _tick=$IDLE_INTERVAL
+        if [ -n "$(conf_get backlight_raw)" ]; then
+            hold_backlight
+            _tick=$HOLD_INTERVAL
+        fi
+
+        _quiet_every=$(quiet_interval)
+        [ "$_tick" -gt "$_quiet_every" ] && _tick=$_quiet_every
+
+        sleep "$_tick"
+
+        _elapsed=$(( _elapsed + _tick ))
+        if [ "$_elapsed" -ge "$_quiet_every" ]; then
+            quiet_tick
+            _elapsed=0
+        fi
+    done
+}
+
+main "$@"

@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lune Bridge</title>
+<style>
+  /* Deliberately dark and warm. This is a panel people open at 3am to stop
+     their screen hurting; opening a white UI to get there would be absurd. */
+  :root {
+    --bg: #12100e;
+    --card: #1c1917;
+    --line: #2e2926;
+    --text: #efe6dc;
+    --muted: #a2968a;
+    --warm: #e8a355;
+    --warm-dim: #7a5a30;
+    --bad: #d98070;
+    --ok: #8fb06a;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0 auto; padding: 16px 16px 48px;
+    background: var(--bg); color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    max-width: 640px;
+  }
+  h1 { font-size: 20px; margin: 8px 0 2px; font-weight: 600; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 16px; }
+  .tabs button {
+    flex: 1; padding: 10px; border-radius: 10px; font-size: 14px;
+    background: #211d1b; border: 1px solid var(--line); color: var(--muted);
+  }
+  .tabs button.sel { background: var(--warm-dim); border-color: var(--warm); color: #fff5e8; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 16px; margin-bottom: 14px;
+  }
+  .card h2 {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--muted); margin: 0 0 12px; font-weight: 600;
+  }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+  .row + .row { margin-top: 8px; }
+  .row .k { color: var(--muted); font-size: 13px; }
+  .row .v { font-variant-numeric: tabular-nums; text-align: right; }
+  .val { color: var(--warm); font-variant-numeric: tabular-nums; font-weight: 600; }
+  input[type=range] {
+    width: 100%; margin: 14px 0 4px; accent-color: var(--warm);
+    background: transparent; height: 26px;
+  }
+  input[type=text], input[type=search] {
+    width: 100%; padding: 10px 12px; border-radius: 10px; font: inherit;
+    background: #211d1b; border: 1px solid var(--line); color: var(--text);
+  }
+  .scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 11px; }
+  button {
+    font: inherit; font-size: 14px; color: var(--text);
+    background: #262120; border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px 14px; cursor: pointer;
+  }
+  button:active { background: #302a28; }
+  button.on { background: var(--warm-dim); border-color: var(--warm); color: #fff5e8; }
+  button.tiny { padding: 5px 9px; font-size: 12px; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btns button { flex: 1 1 auto; }
+  .note { font-size: 12.5px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
+  .banner {
+    border-radius: var(--radius); padding: 12px 14px; margin-bottom: 14px;
+    font-size: 13px; line-height: 1.5; border: 1px solid;
+  }
+  .banner.bad { border-color: #5c3a33; background: #2a1c19; color: #f0c4ba; }
+  .banner.ok  { border-color: #3d4a2e; background: #1e2418; color: #cfe0b8; }
+  .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.yes { color: var(--ok); border-color: #3d4a2e; }
+  .pill.no  { color: var(--bad); border-color: #5c3a33; }
+  pre {
+    white-space: pre-wrap; word-break: break-word; font-size: 12px;
+    color: var(--muted); margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace;
+  }
+  .divider { height: 1px; background: var(--line); margin: 16px 0 14px; }
+  .applist { max-height: 300px; overflow-y: auto; margin-top: 10px; }
+  .app .pkg { color: var(--muted); font-size: 11px; word-break: break-all; }
+  .app {
+    display: flex; align-items: center; gap: 10px; padding: 9px 0;
+    border-top: 1px solid var(--line); font-size: 13px;
+  }
+  .app:first-child { border-top: none; }
+  .app .name { flex: 1; word-break: break-all; }
+  .app .levers { color: var(--muted); font-size: 11.5px; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+
+<h1>Lune Bridge</h1>
+<div class="sub" id="device">reading device…</div>
+
+<div class="tabs">
+  <button id="tabDisplay" class="sel">Display</button>
+  <button id="tabQuiet">Quiet Field</button>
+</div>
+
+<!-- ===================== DISPLAY ===================== -->
+<div id="paneDisplay">
+
+  <div id="banner" class="banner hidden"></div>
+
+  <div class="card">
+    <h2>Light level</h2>
+    <div class="row"><span class="k">Target</span><span class="val" id="levelVal">—</span></div>
+    <input type="range" id="level" min="1" max="100" value="50" disabled>
+    <div class="scale"><span>1 · barely lit</span><span>100</span></div>
+    <div class="note" id="levelNote"></div>
+  </div>
+
+  <div class="card">
+    <h2>Warmth</h2>
+    <div class="row"><span class="k">Colour temperature</span><span class="val" id="warmVal">off</span></div>
+    <!-- step 1, not 25: with a coarse step the slider cannot reach 4082 at all,
+         because 1700 + 25n lands on 4075. The scale says 4082K, so 4082K has to
+         be selectable. -->
+    <input type="range" id="warm" min="1700" max="4082" step="1" value="2850" disabled>
+    <div class="scale"><span>1700K · candle</span><span>4082K</span></div>
+    <div class="btns" style="margin-top:12px">
+      <button id="warmOff">Off</button>
+      <button data-warm="1850">Candle</button>
+      <button data-warm="2400">Ember</button>
+      <button data-warm="3000">Lamp</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Flicker-safe mode</h2>
+    <div class="btns"><button id="flicker">Off</button></div>
+    <div class="note">
+      Holds the backlight above the point where your panel starts strobing, and
+      takes the rest of the dimming out of the colour matrix instead. If low
+      brightness gives you eye strain or headaches, this is the setting that
+      helps. Costs a little contrast in dark scenes.
+    </div>
+    <div class="row" style="margin-top:12px">
+      <span class="k">PWM knee</span><span class="val" id="kneeVal">—</span>
+    </div>
+    <input type="range" id="knee" min="5" max="100" value="50" disabled>
+    <div class="btns" style="margin-top:10px">
+      <button data-knee="60">60%</button>
+      <button data-knee="70">70%</button>
+      <button data-knee="80">80%</button>
+      <button data-knee="90">90%</button>
+    </div>
+    <div class="note">
+      Lower this until flicker stops being visible. The default is a guess, not
+      a measurement — every panel is different.
+    </div>
+    <div class="note" id="kneeFloor"></div>
+  </div>
+
+  <div class="card">
+    <h2>Device</h2>
+    <div id="caps"></div>
+    <div class="btns" style="margin-top:14px">
+      <button id="refresh">Re-probe</button>
+      <button id="reset">Reset to stock</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Report</h2>
+    <pre id="report">…</pre>
+  </div>
+</div>
+
+<!-- ===================== QUIET FIELD ===================== -->
+<div id="paneQuiet" class="hidden">
+
+  <div id="qbanner" class="banner hidden"></div>
+
+  <div class="card">
+    <h2>Quiet hours</h2>
+    <div class="row">
+      <span class="k">Window</span><span class="val" id="windowVal">not scheduled</span>
+    </div>
+    <div class="btns" style="margin-top:12px">
+      <button data-window="2100-0800">21:00 – 08:00</button>
+      <button data-window="2200-0700">22:00 – 07:00</button>
+      <button data-window="2300-0600">23:00 – 06:00</button>
+      <button id="windowOff">Off</button>
+    </div>
+    <div class="note">
+      Windows that cross midnight work as you would expect. Do Not Disturb is
+      set to <strong>priority</strong> rather than total silence, so alarms
+      still go off.
+    </div>
+    <div class="row" style="margin-top:12px">
+      <span class="k">Quiet mode right now</span>
+      <span class="v"><button id="quietNow" class="tiny">off</button></span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Quieted apps</h2>
+    <div class="applist" id="quietList"></div>
+    <div class="note">
+      Default levers: no wake locks, may not turn the screen on, may not take
+      the screen over. Tap <em>levers</em> to cycle which apply.
+    </div>
+    <div class="divider"></div>
+    <input type="search" id="appSearch" placeholder="Search your apps to add one…">
+    <div class="applist" id="appResults"></div>
+  </div>
+
+  <div class="card">
+    <h2>Allowed through</h2>
+    <div class="applist" id="allowList"></div>
+    <div class="note">
+      These may break through Do Not Disturb during quiet hours. Put the people
+      who matter here — a partner, a parent, your on-call app.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Re-engagement watcher</h2>
+    <div class="btns"><button id="watch">Off</button></div>
+    <div class="note">
+      Snoozes notifications matching the pattern list — "we miss you", "your
+      streak is about to expire" — but only for apps you added above.
+      <strong>It polls</strong>, so matching notifications flash briefly before
+      they go, and it costs some battery. Removing them before they are posted
+      would need framework hooks, which this module deliberately does not use.
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Today</h2>
+    <div id="qstats"></div>
+    <div class="btns" style="margin-top:14px">
+      <button id="qrefresh">Re-probe</button>
+      <button id="qreset">Release everything</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Report</h2>
+    <pre id="qreport">…</pre>
+  </div>
+</div>
+
+<!-- ===================== ABOUT ===================== -->
+<div class="card" id="about">
+  <h2>About</h2>
+  <p style="margin:0 0 10px">
+    <strong>Lune Bridge</strong> by <strong>uraniam9</strong> · GPL-3.0
+  </p>
+  <p class="note" style="margin-top:0">
+    Built as the root companion to <strong>SonoLune</strong>, a calm-first
+    sleep and focus app. SonoLune works without root; with this module
+    installed it stops drawing a matte over your screen and hands warmth and
+    dimming to the display pipeline instead.
+  </p>
+  <div class="btns" style="margin-top:12px">
+    <button data-url="https://play.google.com/store/apps/details?id=com.soundsoftlab.sonolune">Get SonoLune</button>
+    <button data-url="https://github.com/uraniam9/lune-bridge">Source</button>
+  </div>
+  <div class="btns" style="margin-top:8px">
+    <button data-url="https://buymeacoffee.com/uraniam9">Buy me a coffee</button>
+    <button data-url="https://github.com/sponsors/uraniam9">Donate</button>
+  </div>
+  <div class="note">
+    The module is free and always will be. If it stopped your eyes hurting at
+    3am, a coffee is a kind way to say so.
+  </div>
+</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// Root bridge.
+//
+// KernelSU, APatch and MMRL's WebUI-X all inject the same `ksu` global with a
+// callback-style exec. Wrap it once, here, so nothing below has to care.
+// ---------------------------------------------------------------------------
+function exec(cmd) {
+  return new Promise((resolve) => {
+    if (typeof ksu === 'undefined' || !ksu.exec) {
+      resolve({ errno: -1, stdout: '', stderr: 'no root bridge in this viewer' });
+      return;
+    }
+    const cb = 'lune_cb_' + Math.random().toString(36).slice(2);
+    window[cb] = (errno, stdout, stderr) => {
+      delete window[cb];
+      resolve({ errno, stdout: stdout || '', stderr: stderr || '' });
+    };
+    try {
+      ksu.exec(cmd, JSON.stringify({}), cb);
+    } catch (e) {
+      delete window[cb];
+      resolve({ errno: -1, stdout: '', stderr: String(e) });
+    }
+  });
+}
+
+const MOD = '/data/adb/modules/lune_display_bridge';
+const ENV = 'LUNE_MODDIR=' + MOD + ' ';
+const lune  = (a) => exec(ENV + MOD + '/bin/lunectl '  + a);
+const quiet = (a) => exec(ENV + MOD + '/bin/quietctl ' + a);
+
+function parseKV(text) {
+  const out = {};
+  text.split('\n').forEach((line) => {
+    const i = line.indexOf('=');
+    if (i > 0) out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  });
+  return out;
+}
+
+const $ = (id) => document.getElementById(id);
+let caps = {}, conf = {}, qconf = {}, qstate = {};
+
+// Slider changes fire continuously; applying on every pixel would queue dozens
+// of root calls. Apply the latest value once the finger settles.
+function debounce(fn, ms) {
+  let t;
+  return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+}
+
+function pill(yes) {
+  return '<span class="pill ' + (yes ? 'yes' : 'no') + '">' + (yes ? 'yes' : 'no') + '</span>';
+}
+
+// A readable name for a package.
+//
+// There is no way to get an app's real label from the shell - `pm` lists
+// packages, not labels, and there is no aapt on a stock device - so this
+// derives one from the package name and always shows the full package
+// underneath. It is a guess, presented as a guess, rather than a bare
+// "stickermaker.stickercreater.whatsappstickers..." with no clue what it is.
+//
+// SonoLune's own picker does show real labels, because an app has PackageManager
+// and can ask properly.
+function prettyName(pkg) {
+  const parts = pkg.split('.').filter(Boolean);
+  if (!parts.length) return pkg;
+  // The last segment is usually the app; for com.foo.bar.MainApp style ids the
+  // vendor middle name is rarely the useful part.
+  let name = parts[parts.length - 1];
+  // Strip a trailing "android"/"app"/"mobile" that carries no information.
+  if (['android', 'app', 'mobile', 'free'].includes(name.toLowerCase()) && parts.length > 1) {
+    name = parts[parts.length - 2];
+  }
+  return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
+function appRow(pkg, right) {
+  return '<div class="app"><span class="name">' + escapeHtml(prettyName(pkg)) +
+    '<div class="pkg">' + escapeHtml(pkg) + '</div></span>' + right + '</div>';
+}
+
+// The WebView will not open an external link on its own, so hand it to Android.
+function openUrl(url) {
+  exec("am start -a android.intent.action.VIEW -d '" + url + "'");
+}
+
+// ------------------------------- tabs -------------------------------------
+function showTab(which) {
+  const d = which === 'display';
+  $('paneDisplay').classList.toggle('hidden', !d);
+  $('paneQuiet').classList.toggle('hidden', d);
+  $('tabDisplay').classList.toggle('sel', d);
+  $('tabQuiet').classList.toggle('sel', !d);
+  if (!d) loadQuiet();
+}
+$('tabDisplay').addEventListener('click', () => showTab('display'));
+$('tabQuiet').addEventListener('click', () => showTab('quiet'));
+
+// ------------------------------ display -----------------------------------
+function renderCaps() {
+  const rows = [
+    ['Night Light', pill(caps.night_display === 'yes')],
+    ['Extra Dim', pill(caps.extra_dim === 'yes')],
+    ['Panel node', caps.backlight_node ? '<span class="pill yes">found</span>' : '<span class="pill no">none</span>'],
+    ['Vendor DC node', caps.dc_nodes ? '<span class="pill yes">present</span>' : '<span class="pill">none</span>'],
+    ['Warm floor', (caps.warm_floor || '2596') + 'K'],
+    ['Max dim', (caps.dim_max || '90') + '%'],
+  ];
+  $('caps').innerHTML = rows.map(
+    ([k, v]) => '<div class="row"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>'
+  ).join('');
+
+  // Join only the parts we actually have, or an unprobed device renders as a
+  // stray separator with nothing on either side of it.
+  $('device').textContent = [
+    [caps.brand, caps.device].filter(Boolean).join(' '),
+    caps.sdk ? 'Android SDK ' + caps.sdk : '',
+  ].filter(Boolean).join(' · ') || 'not probed yet';
+
+  const b = $('banner');
+  if (caps.overlay_warmth === 'yes') {
+    b.className = 'banner ok';
+    b.innerHTML = 'Overlay active. Warmth reaches <strong>' + caps.warm_floor +
+      'K</strong> and dimming reaches <strong>' + caps.dim_max + '%</strong>.';
+  } else if (caps.overlay_installed === 'yes') {
+    b.className = 'banner bad';
+    b.innerHTML = 'The overlay is installed but this ROM is still clamping to ' +
+      caps.warm_floor + 'K. Everything here still works, but only within ' +
+      'Android’s stock limits.';
+  } else {
+    b.className = 'banner bad';
+    b.textContent = 'Overlay not installed. Reboot after installing the module.';
+  }
+  b.classList.remove('hidden');
+}
+
+// How dark flicker-safe mode can actually get at a given knee.
+//
+// Extra Dim tops out at 99% strength, which leaves 5.4% of the signal through,
+// so the darkest reachable level is knee * 0.054. The knee matters far less
+// than people expect: 85% gives a ~4% floor and dropping all the way to 60%
+// only reaches ~3%. Worth showing, because otherwise someone gives up their
+// flicker protection chasing a percentage point.
+function showKneeFloor(knee) {
+  // Must match core.sh exactly, or the UI promises a floor lunectl will not
+  // deliver. The shell works in integer permille and truncates twice:
+  //   strength_to_keep(99) = 1000 - (99 * 956 / 100) = 54
+  //   delivered            = knee * 54 / 1000
+  // Rounding instead of truncating here said 5% where the CLI reported 4%.
+  const KEEP_AT_MAX_DIM = 54;  // permille left at 99% Extra Dim
+  const floor = Math.floor(knee * KEEP_AT_MAX_DIM / 1000);
+  const el = $('kneeFloor');
+  if (!el) return;
+  el.innerHTML = 'At ' + knee + '% the darkest flicker-safe level is about <strong>' +
+    floor + '%</strong>. Lower knees reach a little darker but give back some ' +
+    'flicker protection — the real limit is Extra Dim’s ceiling, not the knee. ' +
+    'Turn flicker mode off to use the panel’s own minimum instead.';
+}
+
+function setLevelNote(v) {
+  const knee = parseInt(caps.pwm_knee || '50', 10);
+  if (conf.flicker === 'on' && v < knee) {
+    $('levelNote').textContent =
+      'Backlight held at ' + knee + '%, the rest taken out of the colour matrix.';
+  } else if (v < 10) {
+    $('levelNote').textContent = 'Below the panel minimum, using Extra Dim.';
+  } else {
+    $('levelNote').textContent = 'Straight panel brightness.';
+  }
+}
+
+function syncDisplay() {
+  const level = parseInt(conf.level || '50', 10);
+  $('level').value = level;
+  $('levelVal').textContent = level + '%';
+  setLevelNote(level);
+
+  const warm = conf.warm && conf.warm !== 'off' ? parseInt(conf.warm, 10) : null;
+  $('warm').min = caps.warm_floor || 2596;
+  if (warm) { $('warm').value = warm; $('warmVal').textContent = warm + 'K'; }
+  else { $('warmVal').textContent = 'off'; }
+
+  const knee = parseInt(caps.pwm_knee || '50', 10);
+  $('knee').value = knee;
+  $('kneeVal').textContent = knee + '%';
+  showKneeFloor(knee);
+
+  const on = conf.flicker === 'on';
+  $('flicker').textContent = on ? 'On' : 'Off';
+  $('flicker').classList.toggle('on', on);
+
+  ['level', 'warm', 'knee'].forEach((id) => { $(id).disabled = false; });
+}
+
+async function load() {
+  const [c, k, status] = await Promise.all([
+    exec('cat /data/adb/lune/caps'),
+    exec('cat /data/adb/lune/config'),
+    lune('status'),
+  ]);
+  caps = parseKV(c.stdout);
+  conf = parseKV(k.stdout);
+  $('report').textContent = status.stdout || status.stderr || 'no output';
+  renderCaps();
+  syncDisplay();
+}
+
+const applyLevel = debounce(async (v) => { await lune('level ' + v); await load(); }, 250);
+const applyWarm = debounce(async (v) => { await lune('warm ' + v); await load(); }, 250);
+const applyKnee = debounce(async (v) => { await lune('knee ' + v); await load(); }, 350);
+
+$('level').addEventListener('input', (e) => {
+  $('levelVal').textContent = e.target.value + '%';
+  setLevelNote(parseInt(e.target.value, 10));
+  applyLevel(e.target.value);
+});
+$('warm').addEventListener('input', (e) => {
+  $('warmVal').textContent = e.target.value + 'K';
+  applyWarm(e.target.value);
+});
+$('knee').addEventListener('input', (e) => {
+  $('kneeVal').textContent = e.target.value + '%';
+  showKneeFloor(parseInt(e.target.value, 10));
+  applyKnee(e.target.value);
+});
+document.querySelectorAll('[data-knee]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    await lune('knee ' + btn.dataset.knee);
+    await load();
+  });
+});
+$('warmOff').addEventListener('click', async () => { await lune('warm off'); await load(); });
+document.querySelectorAll('[data-warm]').forEach((btn) => {
+  btn.addEventListener('click', async () => { await lune('warm ' + btn.dataset.warm); await load(); });
+});
+$('flicker').addEventListener('click', async () => {
+  await lune('flicker ' + (conf.flicker === 'on' ? 'off' : 'on'));
+  await load();
+});
+$('refresh').addEventListener('click', async () => { await lune('probe'); await load(); });
+$('reset').addEventListener('click', async () => { await lune('reset'); await load(); });
+
+// ----------------------------- quiet field --------------------------------
+// Cycling order for a tap on a quieted app. Deliberately does not include
+// "notify" — blocking notifications outright is a decision worth typing out,
+// not one to arrive at by tapping a row three times.
+const LEVER_CYCLE = [
+  'wake,screen,fullscreen',
+  'wake,screen,fullscreen,vibrate',
+  'wake',
+];
+
+let quietApps = [], allowApps = [], installed = [];
+
+function renderQuiet() {
+  const mode = qstate.mode || 'off';
+  $('quietNow').textContent = mode;
+  $('quietNow').classList.toggle('on', mode === 'on');
+
+  const w = qconf.window;
+  $('windowVal').textContent = w
+    ? w.slice(0, 2) + ':' + w.slice(2, 4) + ' – ' + w.slice(5, 7) + ':' + w.slice(7, 9)
+    : 'not scheduled';
+
+  const watching = qconf.watch === 'on';
+  $('watch').textContent = watching ? 'On' : 'Off';
+  $('watch').classList.toggle('on', watching);
+
+  $('quietList').innerHTML = quietApps.length
+    ? quietApps.map((a) =>
+        '<div class="app"><span class="name">' + escapeHtml(prettyName(a.pkg)) +
+        '<div class="pkg">' + escapeHtml(a.pkg) + '</div>' +
+        '<div class="levers">' + escapeHtml(a.levers.split(',').join(' · ')) + '</div></span>' +
+        '<button class="tiny" data-cycle="' + a.pkg + '">levers</button>' +
+        '<button class="tiny" data-unquiet="' + a.pkg + '">remove</button></div>'
+      ).join('')
+    : '<div class="note">No apps quieted yet. Search below to add one.</div>';
+
+  $('allowList').innerHTML = allowApps.length
+    ? allowApps.map((p) =>
+        appRow(p, '<button class="tiny" data-disallow="' + p + '">remove</button>')
+      ).join('')
+    : '<div class="note">Nobody breaks through yet.</div>';
+
+  const b = $('qbanner');
+  const levers = (caps.quiet_levers || '').split(' ').filter(Boolean);
+  if (!levers.length) {
+    b.className = 'banner bad';
+    b.textContent = 'No appops levers available on this device. Quiet Field cannot do anything here.';
+  } else {
+    const missing = ['wake', 'screen', 'fullscreen', 'vibrate', 'notify'].filter((l) => !levers.includes(l));
+    b.className = 'banner ok';
+    b.innerHTML = 'Available levers: <strong>' + levers.join(', ') + '</strong>' +
+      (missing.length ? '. Not on this Android version: ' + missing.join(', ') + '.' : '.');
+  }
+  b.classList.remove('hidden');
+}
+
+async function loadQuiet() {
+  const [apps, allow, st, cfg, status, caps2] = await Promise.all([
+    exec('cat /data/adb/lune/quiet.apps'),
+    exec('cat /data/adb/lune/quiet.allow'),
+    exec('cat /data/adb/lune/quiet.state'),
+    exec('cat /data/adb/lune/quiet.conf'),
+    quiet('status'),
+    exec('cat /data/adb/lune/caps'),
+  ]);
+  quietApps = apps.stdout.split('\n').filter(Boolean).map((l) => {
+    const i = l.indexOf(':');
+    return { pkg: l.slice(0, i), levers: l.slice(i + 1) };
+  });
+  allowApps = allow.stdout.split('\n').filter(Boolean);
+  qstate = parseKV(st.stdout);
+  qconf = parseKV(cfg.stdout);
+  caps = Object.assign(caps, parseKV(caps2.stdout));
+  $('qreport').textContent = status.stdout || status.stderr || 'no output';
+
+  const today = new Date().toISOString().slice(0, 10);
+  const stats = parseKV((await exec('cat /data/adb/lune/quiet.stats')).stdout);
+  $('qstats').innerHTML =
+    '<div class="row"><span class="k">Quiet periods</span><span class="v">' +
+      (stats[today + '.entered'] || 0) + '</span></div>' +
+    '<div class="row"><span class="k">Notifications stripped</span><span class="v">' +
+      (stats[today + '.stripped'] || 0) + '</span></div>';
+
+  renderQuiet();
+}
+
+// Only third-party packages. Offering to silence system packages invites
+// someone to quiet their own dialler.
+async function loadInstalled() {
+  if (installed.length) return;
+  const r = await exec('pm list packages -3');
+  installed = r.stdout.split('\n')
+    .map((l) => l.replace(/^package:/, '').trim())
+    .filter(Boolean)
+    .sort();
+}
+
+$('appSearch').addEventListener('input', async (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  if (!q) { $('appResults').innerHTML = ''; return; }
+  await loadInstalled();
+  const already = new Set(quietApps.map((a) => a.pkg));
+  const hits = installed.filter((p) => p.toLowerCase().includes(q) && !already.has(p)).slice(0, 12);
+  $('appResults').innerHTML = hits.length
+    ? hits.map((p) => appRow(p,
+        '<button class="tiny" data-add="' + p + '">quiet</button>' +
+        '<button class="tiny" data-allow="' + p + '">allow</button>')
+      ).join('')
+    : '<div class="note">No match.</div>';
+});
+
+// One delegated listener rather than rebinding after every re-render.
+document.addEventListener('click', async (e) => {
+  const t = e.target;
+  if (!(t instanceof HTMLElement)) return;
+  const d = t.dataset;
+  if (d.add) {
+    await quiet('add ' + d.add);
+    $('appSearch').value = ''; $('appResults').innerHTML = '';
+    await loadQuiet();
+  } else if (d.unquiet) {
+    await quiet('remove ' + d.unquiet); await loadQuiet();
+  } else if (d.allow) {
+    await quiet('allow ' + d.allow);
+    $('appSearch').value = ''; $('appResults').innerHTML = '';
+    await loadQuiet();
+  } else if (d.disallow) {
+    await quiet('disallow ' + d.disallow); await loadQuiet();
+  } else if (d.cycle) {
+    const cur = quietApps.find((a) => a.pkg === d.cycle);
+    const i = LEVER_CYCLE.indexOf(cur ? cur.levers : '');
+    await quiet('add ' + d.cycle + ' ' + LEVER_CYCLE[(i + 1) % LEVER_CYCLE.length]);
+    await loadQuiet();
+  } else if (d.window) {
+    await quiet('window ' + d.window); await loadQuiet();
+  } else if (d.url) {
+    openUrl(d.url);
+  }
+});
+
+$('windowOff').addEventListener('click', async () => { await quiet('window off'); await loadQuiet(); });
+$('quietNow').addEventListener('click', async () => {
+  await quiet(qstate.mode === 'on' ? 'off' : 'on');
+  await loadQuiet();
+});
+$('watch').addEventListener('click', async () => {
+  await quiet('watch ' + (qconf.watch === 'on' ? 'off' : 'on'));
+  await loadQuiet();
+});
+$('qrefresh').addEventListener('click', async () => { await quiet('probe'); await loadQuiet(); });
+$('qreset').addEventListener('click', async () => { await quiet('reset'); await loadQuiet(); });
+
+load();
+</script>
+</body>
+</html>

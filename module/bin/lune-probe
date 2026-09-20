@@ -1,0 +1,202 @@
+#!/system/bin/sh
+#
+# Lune Bridge - capability probe.
+#
+# Runs at boot and on demand. Works out what this specific phone can actually
+# do and writes the answers to $LUNE_CAPS for everything else to read.
+#
+# Two rules this file sticks to:
+#
+#   1. Detect, never assume. Display sysfs layouts are not standardised across
+#      vendors and there is no public registry of them, so the probe looks for
+#      what is present instead of trusting a table.
+#
+#   2. Never write to a node it does not understand. Existence is reported;
+#      enabling an unknown vendor node is left to a device profile or an
+#      explicit user command. Poking unknown display registers to see what
+#      happens is a good way to hand someone a black screen on boot.
+
+# shellcheck source=../lib/core.sh
+. "${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}/lib/core.sh"
+
+ensure_dirs
+
+# Backlight node candidates, most specific first. The glob forms cover the
+# common Qualcomm/MediaTek/Exynos naming; the explicit ones cover devices that
+# do not register a standard backlight class device.
+BL_GLOBS="
+/sys/class/backlight/panel0-backlight
+/sys/class/backlight/*
+/sys/class/leds/lcd-backlight
+/sys/class/leds/wled
+/sys/class/leds/*backlight*
+"
+
+# Vendor anti-flicker / DC-dimming nodes reported by various community modules.
+# Presence only - see rule 2 above. Flicker-safe mode does not depend on any of
+# these; they are a shortcut when the kernel happens to offer one.
+DC_CANDIDATES="
+/sys/class/mi_display/disp-DSI-0/disp_param
+/sys/devices/platform/soc/soc:qcom,dsi-display-primary/disp_param
+/sys/kernel/oplus_display/dimlayer_bl_en
+/sys/kernel/oppo_display/dimlayer_bl_en
+/proc/oplus_display/dimlayer_bl_en
+/sys/class/drm/card0-DSI-1/dimlayer_bl_en
+/sys/class/graphics/fb0/dc_dim
+/sys/module/msm_drm/parameters/dc_dim
+/sys/devices/platform/soc/soc:qcom,dsi-display/dc_dim
+"
+
+find_backlight() {
+    for _pattern in $BL_GLOBS; do
+        for _dir in $_pattern; do
+            [ -d "$_dir" ] || continue
+            [ -w "$_dir/brightness" ] || continue
+            _max=$(node_read "$_dir/max_brightness")
+            is_int "$_max" || continue
+            [ "$_max" -gt 0 ] || continue
+            echo "$_dir $_max"
+            return 0
+        done
+    done
+    return 1
+}
+
+probe_backlight() {
+    _found=$(find_backlight)
+    if [ -z "$_found" ]; then
+        cap_set backlight_node ""
+        cap_set backlight_max 0
+        cap_set backlight no
+        return
+    fi
+    cap_set backlight_node "${_found% *}"
+    cap_set backlight_max "${_found#* }"
+    cap_set backlight yes
+}
+
+probe_dc_nodes() {
+    _hits=""
+    for _n in $DC_CANDIDATES; do
+        [ -e "$_n" ] && _hits="$_hits$_n "
+    done
+    cap_set dc_nodes "${_hits% }"
+    [ -n "$_hits" ] && cap_set dc_node_present yes || cap_set dc_node_present no
+}
+
+probe_framework() {
+    cap_set sdk "$(getprop ro.build.version.sdk)"
+    cap_set device "$(getprop ro.product.vendor.model || getprop ro.product.model)"
+    cap_set brand "$(getprop ro.product.vendor.brand || getprop ro.product.brand)"
+
+    # Night Light and Extra Dim are only meaningful if the framework exposes
+    # them. Rather than read the config resource - which needs a running app
+    # context - test the settings functionally.
+    if setting_accepts secure night_display_activated 0; then
+        cap_set night_display yes
+    else
+        cap_set night_display no
+    fi
+
+    if setting_accepts secure reduce_bright_colors_activated 0; then
+        cap_set extra_dim yes
+    else
+        cap_set extra_dim no
+    fi
+}
+
+# The important one. An RRO can install, appear in `cmd overlay list`, and
+# still not be in effect - wrong partition policy, an OEM overlayable block, a
+# ROM that rebuilds its own idmap. So do not ask whether the overlay is
+# installed; ask whether the framework now accepts a value it used to clamp.
+probe_overlay_effect() {
+    _target=1700
+    if setting_accepts secure night_display_color_temperature "$_target"; then
+        cap_set warm_floor "$_target"
+        cap_set overlay_warmth yes
+    else
+        cap_set overlay_warmth no
+        # Find where the clamp actually lands, so status can report the real
+        # limit instead of a guess.
+        for _t in 1700 2000 2300 2596 2900; do
+            if setting_accepts secure night_display_color_temperature "$_t"; then
+                cap_set warm_floor "$_t"
+                return
+            fi
+        done
+        cap_set warm_floor 2596
+    fi
+}
+
+probe_dim_range() {
+    if setting_accepts secure reduce_bright_colors_level 95; then
+        cap_set dim_max 99
+        cap_set overlay_dim yes
+    else
+        cap_set overlay_dim no
+        for _l in 90 75 50; do
+            if setting_accepts secure reduce_bright_colors_level "$_l"; then
+                cap_set dim_max "$_l"
+                return
+            fi
+        done
+        cap_set dim_max 90
+    fi
+}
+
+probe_overlay_installed() {
+    if cmd overlay list 2>/dev/null | grep -q "com.soundsoftlab.lune.overlay"; then
+        cap_set overlay_installed yes
+        cmd overlay list 2>/dev/null | grep "com.soundsoftlab.lune.overlay" \
+            | grep -q "^\[x\]" && cap_set overlay_enabled yes || cap_set overlay_enabled no
+    else
+        cap_set overlay_installed no
+        cap_set overlay_enabled no
+    fi
+}
+
+# Community-contributed per-device values, keyed by brand and model. Only the
+# PWM knee is worth shipping this way: it cannot be detected in software - it
+# is a property of the panel that someone has to see with their own eyes - but
+# it is identical for everyone with the same phone.
+apply_profile() {
+    _slug=$(echo "$(cap_get brand)-$(cap_get device)" \
+        | tr '[:upper:]' '[:lower:]' | tr ' /' '--')
+    _file="$LUNE_MODDIR/profiles/$_slug.prop"
+    [ -f "$_file" ] || return 1
+
+    # A knee the user measured on their own panel beats a shipped default.
+    [ "$(cap_get pwm_knee_source)" = "measured" ] && return 0
+
+    _knee=$(kv_get "$_file" pwm_knee)
+    if is_int "$_knee"; then
+        cap_set pwm_knee "$(clamp "$_knee" 1 100)"
+        cap_set pwm_knee_source "profile:$_slug"
+        log "probe: applied profile $_slug (knee $_knee)"
+        return 0
+    fi
+    return 1
+}
+
+main() {
+    log "probe: starting"
+    cap_set probed_at "$(date '+%Y-%m-%d %H:%M:%S')"
+    probe_backlight
+    probe_dc_nodes
+    probe_framework
+    probe_overlay_installed
+    probe_overlay_effect
+    probe_dim_range
+
+    # A knee we did not measure is a guess, and should be labelled as one so
+    # that status can say so rather than presenting it as fact.
+    if ! apply_profile && [ -z "$(cap_get pwm_knee)" ]; then
+        cap_set pwm_knee "$DEFAULT_PWM_KNEE_PCT"
+        cap_set pwm_knee_source default
+    fi
+
+    log "probe: backlight=$(cap_get backlight) night=$(cap_get night_display) extradim=$(cap_get extra_dim) warm_floor=$(cap_get warm_floor) dim_max=$(cap_get dim_max)"
+    [ "$1" = "-q" ] || cat "$LUNE_CAPS"
+}
+
+main "$@"

@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Template for the overlay's resources. tools/build.sh substitutes the two
+  placeholder tokens below and writes the result to build/. Edit this file,
+  never the generated copy.
+
+  Every value here overrides frameworks/base/core/res/res/values/config.xml.
+  Stock values are quoted next to each one so the diff is legible.
+-->
+<resources>
+
+    <!-- ==================================================================
+         Warmth: widen Night Light past its stock floor.
+
+         Stock: 2596K. Night Light already routes through the hardware colour
+         transform, so it covers the lock screen, the notification shade and
+         every app, costs no compositing overhead, and needs no accessibility
+         service or screen overlay. It is simply not allowed to go warm enough.
+
+         Lowering Min alone is not sufficient and is what most existing tweaks
+         get wrong: AOSP's ramp is a quadratic fitted over 2596-4082K only, and
+         evaluating it at 1700K still reports 26% blue. The refitted
+         coefficients below reach a real 1700K blackbody, stay monotonic, and
+         match AOSP exactly at 4082K so the top of the slider is unchanged.
+         See tools/coefficients.py for the derivation and its validation.
+         ================================================================== -->
+    <integer name="config_nightDisplayColorTemperatureMin">1700</integer>
+
+    <!-- Unchanged at 4082 on purpose. The ramp normalises red to 1.0, so a
+         neutral 6500K endpoint would need green and blue gains above 1.0,
+         which clips rather than brightens. Night Light off is the neutral. -->
+    <integer name="config_nightDisplayColorTemperatureMax">4082</integer>
+
+@NIGHT_COEFFICIENTS@
+
+    <!-- ==================================================================
+         Dimming: unthrottle Extra Dim.
+
+         Android 12+ already ships a colour-matrix dimmer that multiplies the
+         framebuffer below the panel's electrical minimum. It is the correct
+         mechanism for dimming below minimum - unlike a black overlay window it
+         does not crush contrast, does not sit above other windows, and covers
+         secure screens. It is just clamped to 25-90% strength.
+
+         With the stock ramp (1 - 0.9556*strength), 90% strength leaves 14% of
+         the original signal. At 99% it leaves 5.4%, roughly a further 2.6x
+         darker, which is the difference between "dim" and "readable at 3am
+         without waking up".
+         ================================================================== -->
+    <integer name="config_reduceBrightColorsStrengthMin">0</integer>     <!-- stock 25 -->
+    <integer name="config_reduceBrightColorsStrengthMax">99</integer>    <!-- stock 90 -->
+
+    <!-- ==================================================================
+         Brightness floor: let the framework's own slider go to the bottom.
+
+         Stock is -2, a sentinel meaning "defer to the display's config". The
+         AOSP comment on this resource reads: "Set this to 0.0 to allow screen
+         to go to minimal brightness." That is the panel's minimum, not off:
+         screen-off is a separate power state and this does not reach it.
+
+         On a panel whose driver maps the bottom of the range to a very dark
+         backlight, the system slider can still land somewhere hard to read.
+         Lune's own writes stop short of the very bottom, but the system
+         slider is the user's, and the ways back are `lunectl reset`, removing
+         the module, and Magisk safe mode (Volume Down during boot).
+         ================================================================== -->
+    <item name="config_screenBrightnessSettingMinimumFloat" format="float" type="dimen">0.0</item>
+
+    <!-- Legacy 0-255 path, still consulted on older or vendor-patched
+         frameworks. Stock 10. Kept at 1 rather than 0 for the same reason. -->
+    <integer name="config_screenBrightnessSettingMinimum">1</integer>
+
+@FORCE_AVAILABLE@
+
+</resources>

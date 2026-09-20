@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Runtime Resource Overlay targeting framework-res (package "android").
+
+  No android:targetName is declared because AOSP's framework-res ships no
+  <overlayable> block, so the config_* resources below are not behind a policy
+  gate. A ROM that adds its own overlayable could still refuse this overlay,
+  which is why the module verifies functionally at boot (write 1700K, read it
+  back) rather than trusting that installation implies effect.
+
+  android:isStatic is honoured up to Android 10 and ignored afterwards; from
+  Android 11 the module's OverlayConfig file and the `cmd overlay enable`
+  fallback in service.sh do the same job.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.soundsoftlab.lune.overlay"
+    android:versionCode="1"
+    android:versionName="@VERSION@">
+
+    <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="35" />
+
+    <application
+        android:hasCode="false"
+        android:label="Lune Display Bridge" />
+
+    <overlay
+        android:targetPackage="android"
+        android:isStatic="true"
+        android:priority="9999" />
+
+</manifest>

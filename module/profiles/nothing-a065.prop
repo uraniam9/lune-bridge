@@ -1,0 +1,11 @@
+# Nothing Phone (A065)
+# Contributed by: uraniam9
+# Measured on: Android 16 (SDK 36), stock ROM
+
+# Backlight percentage below which this panel's PWM strobe becomes visible.
+#
+# High compared with most panels, which means flicker-safe mode's darkest
+# reachable level here is about 4% (knee * 0.054, capped by Extra Dim's 99%
+# ceiling). Dropping the knee to 70 only reaches ~3%, so it is not worth
+# trading the flicker protection for.
+pwm_knee=85

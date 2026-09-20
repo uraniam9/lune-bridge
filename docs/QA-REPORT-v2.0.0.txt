@@ -1,0 +1,100 @@
+
+1. Shell syntax
+  PASS all 13 shell files parse
+  PASS no obvious bashisms (arrays, [[ ]], declare)
+
+2. Module metadata
+  PASS module id 'lune_display_bridge' matches Magisk's required pattern
+  PASS module.prop has id
+  PASS module.prop has name
+  PASS module.prop has version
+  PASS module.prop has versionCode
+  PASS module.prop has author
+  PASS module.prop has description
+  PASS versionCode '20000' is an integer
+  PASS lunectl VERSION (2.0.0) matches module.prop (2.0.0)
+  PASS quietctl VERSION (2.0.0) matches module.prop (2.0.0)
+  PASS module uses 'Lune Bridge' consistently
+  PASS author is uraniam9
+  PASS module.prop credits SonoLune
+  PASS WebUI promotes SonoLune
+  PASS every module path matches the declared id
+
+3. Tests
+  PASS core tests: 89 passed, 0 failed
+  PASS colour ramp validates (non-negative, monotonic, drift in bounds)
+
+4. Docs contract
+  PASS every documented caps key is written by the code
+  PASS every documented config key is written by the code
+  PASS lunectl has 'status'
+  PASS lunectl has 'level'
+  PASS lunectl has 'warm'
+  PASS lunectl has 'dim'
+  PASS lunectl has 'flicker'
+  PASS lunectl has 'knee'
+  PASS lunectl has 'backlight'
+  PASS lunectl has 'probe'
+  PASS lunectl has 'apply'
+  PASS lunectl has 'reset'
+  PASS lunectl has 'version'
+  PASS quietctl has 'status'
+  PASS quietctl has 'add'
+  PASS quietctl has 'remove'
+  PASS quietctl has 'list'
+  PASS quietctl has 'window'
+  PASS quietctl has 'on'
+  PASS quietctl has 'off'
+  PASS quietctl has 'dnd'
+  PASS quietctl has 'allow'
+  PASS quietctl has 'disallow'
+  PASS quietctl has 'watch'
+  PASS quietctl has 'pattern'
+  PASS quietctl has 'stats'
+  PASS quietctl has 'probe'
+  PASS quietctl has 'reset'
+  PASS quietctl has 'version'
+  PASS every doc link resolves
+
+5. Safety invariants
+  PASS uninstall.sh lifts android:wake_lock
+  PASS uninstall.sh lifts android:turn_screen_on
+  PASS uninstall.sh lifts android:use_full_screen_intent
+  PASS uninstall.sh lifts android:vibrate
+  PASS uninstall.sh lifts android:post_notification
+  PASS uninstall.sh clears night display
+  PASS uninstall.sh clears extra dim
+  PASS uninstall.sh restores a readable brightness
+  PASS quiet lift uses 'default', never 'allow'
+  PASS nothing grants an appop outright
+  PASS DND uses 'priority' so alarms still fire
+  PASS DND never uses 'none'
+  PASS failed-boot guard present
+  PASS watcher only inspects apps the user added
+
+6. Patterns
+  PASS 27 re-engagement patterns shipped
+  PASS no pattern matches ordinary messages or 2FA codes
+
+7. Build and package
+  PASS clean build from scratch
+  PASS produced dist/LuneDisplayBridge-v2.0.0.zip
+  PASS all required files in zip
+  PASS every script carries its exec bit
+  PASS overlay carries config_nightDisplayColorTemperatureMin
+  PASS overlay carries config_nightDisplayColorTemperatureMax
+  PASS overlay carries config_nightDisplayColorTemperatureCoefficients
+  PASS overlay carries config_reduceBrightColorsStrengthMax
+  PASS overlay carries config_reduceBrightColorsStrengthMin
+  PASS overlay carries config_screenBrightnessSettingMinimumFloat
+  PASS overlay carries config_screenBrightnessSettingMinimum
+  PASS overlay's warm floor is 1700K
+
+8. Housekeeping
+  PASS no TODO/FIXME/HACK markers
+  PASS no stale v1 naming in user-facing docs
+  PASS signing key is gitignored
+  PASS LICENSE present and complete
+
+110 passed, 0 failed, 0 warnings
+QA PASS - safe to submit (device testing still outstanding)

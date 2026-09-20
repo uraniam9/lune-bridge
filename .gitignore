@@ -1,0 +1,13 @@
+# Build output
+build/
+dist/
+
+# Signing key. Never commit this - it is a private key, even though the
+# overlay's trust comes from its partition rather than its signature.
+# Keep one key per project outside the repo so upgrades keep a stable
+# signature; build.sh generates a throwaway one if none exists.
+tools/*.keystore
+
+# Python
+__pycache__/
+*.pyc

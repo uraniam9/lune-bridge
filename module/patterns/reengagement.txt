@@ -1,0 +1,50 @@
+# Lune Bridge - starter re-engagement patterns.
+#
+# Case-insensitive extended regex, one per line. Lines starting with # are
+# ignored. These match the phrasing apps use to pull you back in when nothing
+# has actually happened - as opposed to a real message from a real person.
+#
+# These are only ever tested against apps you explicitly added with
+# `quietctl add`. The watcher never looks at anything else, which is what keeps
+# it from ever eating a two-factor code or a message from someone you know.
+#
+# Deliberately conservative. A false positive here means a notification you
+# wanted disappeared, which is much worse than one you did not want surviving.
+# Add your own with: quietctl pattern add "<regex>"
+
+# Nothing happened, but here is a notification anyway
+we miss you
+haven'?t seen you
+still thinking about
+come back
+you have new
+don'?t miss
+new for you
+suggested for you
+picked for you
+trending (now|near you)
+popular (now|near you)
+
+# Manufactured social pressure
+people are waiting
+someone you may know
+others? (are|is) waiting
+your friends are
+is waiting for you
+
+# Streaks and stakes
+your streak
+keep your streak
+streak (is|will) (end|expir)
+about to expire
+
+# Commerce nudges
+back in stock
+price (drop|dropped)
+still in your (cart|basket)
+left something in your
+
+# Vague summaries
+you have \d+ (new|unread)
+\d+ (new|unread) (updates?|stories|posts)
+see what'?s new

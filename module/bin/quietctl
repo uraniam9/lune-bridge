@@ -1,0 +1,279 @@
+#!/system/bin/sh
+#
+# Lune Bridge - Quiet Field command line interface.
+#
+# The attention half of the module. Same shape as lunectl: this is the whole
+# public surface, and docs/API.md is the contract.
+
+. "${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}/lib/quiet.sh"
+
+VERSION=2.0.0
+
+DEFAULT_LEVERS="wake,screen,fullscreen"
+
+usage() {
+    cat <<'USAGE'
+quietctl - Lune Bridge, Quiet Field
+
+  status                    what this device can do, and what is active now
+  add <pkg> [levers]        quiet an app   (default: wake,screen,fullscreen)
+  remove <pkg>              stop quieting it
+  list                      apps being quieted, and with which levers
+
+  window <HHMM-HHMM|off>    quiet hours, e.g. 2100-0800
+  on | off                  enter or leave quiet mode now
+  dnd <on|off>              use Do Not Disturb during quiet hours
+
+  allow <pkg>               may break through Do Not Disturb
+  disallow <pkg>
+  allowed                   list of apps that may break through
+
+  watch <on|off>            strip re-engagement notifications (costs battery)
+  pattern add <regex>       what counts as re-engagement
+  pattern remove <regex>
+  pattern list
+
+  stats                     what has been blocked
+  probe                     re-detect capabilities
+  reset                     lift everything, forget all rules
+  version
+
+Levers
+  wake        may not hold a wake lock          (any Android)
+  screen      may not turn the screen on        (Android 14+)
+  fullscreen  may not take over the whole screen (Android 14+)
+  vibrate     may not buzz
+  notify      may not post notifications at all  (blunt - opt in per app)
+
+Examples
+  quietctl add com.example.social
+  quietctl add com.example.news wake,fullscreen,vibrate
+  quietctl window 2100-0800
+  quietctl allow com.example.messages
+USAGE
+}
+
+# ---------------------------------------------------------------------------
+
+cmd_add() {
+    _pkg=$1
+    _levers=${2:-$DEFAULT_LEVERS}
+
+    quiet_pkg_installed "$_pkg" || die "no such package installed: $_pkg"
+
+    # Reject unknown lever names rather than silently doing nothing - a typo in
+    # a lever is otherwise indistinguishable from a feature that does not work.
+    _clean=""
+    _skipped=""
+    for _l in $(echo "$_levers" | tr ',' ' '); do
+        [ -n "$(quiet_op_for "$_l")" ] || die "unknown lever: $_l (see 'quietctl' for the list)"
+        if quiet_lever_supported "$_l"; then
+            _clean="$_clean$_l,"
+        else
+            _skipped="$_skipped$_l "
+        fi
+    done
+    _clean=${_clean%,}
+
+    [ -n "$_clean" ] || die "none of those levers exist on this Android version"
+
+    quiet_app_set "$_pkg" "$_clean"
+    [ "$(quiet_mode)" = "on" ] && quiet_apply_pkg "$_pkg" "$_clean"
+
+    echo "quiet: $_pkg -> $_clean"
+    [ -n "$_skipped" ] && echo "       skipped (not on this Android version): ${_skipped% }"
+    [ "$(quiet_mode)" = "on" ] || echo "       takes effect when quiet mode is on"
+}
+
+cmd_remove() {
+    [ -n "$(quiet_app_levers "$1")" ] || die "$1 is not being quieted"
+    quiet_lift_pkg "$1" "$(quiet_app_levers "$1")"
+    quiet_app_remove "$1"
+    echo "quiet: released $1"
+}
+
+cmd_list() {
+    if [ ! -s "$QUIET_APPS" ]; then
+        echo "No apps are being quieted. Add one with 'quietctl add <package>'."
+        return 0
+    fi
+    while IFS=: read -r _pkg _levers; do
+        [ -n "$_pkg" ] || continue
+        printf '  %-44s %s\n' "$_pkg" "$_levers"
+    done < "$QUIET_APPS"
+}
+
+cmd_window() {
+    if [ "$1" = "off" ]; then
+        qconf_set window ""
+        quiet_leave
+        echo "quiet: schedule cleared. Use 'quietctl on' for manual control."
+        return 0
+    fi
+    quiet_window_valid "$1" \
+        || die "window must look like 2100-0800 (24h, HHMM-HHMM, start and end differ)"
+    qconf_set window "$1"
+    echo "quiet: quiet hours ${1%-*} to ${1#*-}"
+    quiet_tick
+}
+
+cmd_status() {
+    [ -f "$LUNE_CAPS" ] || die "not probed yet - run 'quietctl probe'"
+
+    echo "Lune Bridge - Quiet Field $VERSION"
+    echo "  device        $(cap_get brand) $(cap_get device), SDK $(cap_get sdk)"
+    echo
+
+    echo "Capabilities"
+    _levers=$(cap_get quiet_levers)
+    printf '  %-16s %s\n' "levers" "${_levers:-none}"
+    for _l in $ALL_LEVERS; do
+        quiet_lever_supported "$_l" || printf '  %-16s unavailable on this Android version\n' "$_l"
+    done
+    printf '  %-16s %s\n' "notifications" "$(cap_get quiet_notification no)"
+    echo
+
+    echo "Now"
+    printf '  %-16s %s\n' "quiet mode" "$(quiet_mode)"
+    _w=$(qconf_get window)
+    printf '  %-16s %s\n' "quiet hours" "${_w:-not scheduled (manual)}"
+    printf '  %-16s %s\n' "do not disturb" "$(qconf_get dnd on)"
+    printf '  %-16s %s\n' "watcher" "$(qconf_get watch off)"
+    _n=$(quiet_app_list | wc -l | tr -d ' ')
+    printf '  %-16s %s\n' "apps quieted" "$_n"
+    _a=$(quiet_allow_list | wc -l | tr -d ' ')
+    printf '  %-16s %s\n' "allowed through" "$_a"
+    echo
+
+    echo "Today"
+    printf '  %-16s %s\n' "quiet periods" "$(quiet_stat_today entered)"
+    printf '  %-16s %s\n' "stripped" "$(quiet_stat_today stripped)"
+
+    if [ "$(qconf_get watch off)" = "on" ]; then
+        echo
+        echo "  The watcher polls every $(qconf_get watch_interval 20)s. Matching"
+        echo "  notifications appear briefly before they are snoozed - removing"
+        echo "  them before they are posted would need framework hooks, which"
+        echo "  this module deliberately does not use."
+    fi
+}
+
+cmd_stats() {
+    if [ ! -s "$QUIET_STATS" ]; then
+        echo "Nothing recorded yet."
+        return 0
+    fi
+    echo "date        entered  stripped"
+    _dates=$(cut -d. -f1 "$QUIET_STATS" 2>/dev/null | sort -u)
+    for _d in $_dates; do
+        printf '%-11s %7s  %8s\n' "$_d" \
+            "$(kv_get "$QUIET_STATS" "$_d.entered" 0)" \
+            "$(kv_get "$QUIET_STATS" "$_d.stripped" 0)"
+    done
+}
+
+cmd_pattern() {
+    mkdir -p "$LUNE_DIR"
+    case "$1" in
+        add)
+            [ -n "$2" ] || die "pattern add: needs a regex"
+            touch "$QUIET_PATTERNS"
+            grep -qxF "$2" "$QUIET_PATTERNS" 2>/dev/null || echo "$2" >> "$QUIET_PATTERNS"
+            echo "quiet: watching for /$2/"
+            ;;
+        remove)
+            [ -n "$2" ] || die "pattern remove: needs a regex"
+            [ -f "$QUIET_PATTERNS" ] || return 0
+            grep -vxF "$2" "$QUIET_PATTERNS" > "$QUIET_PATTERNS.new" 2>/dev/null
+            mv "$QUIET_PATTERNS.new" "$QUIET_PATTERNS"
+            echo "quiet: stopped watching for /$2/"
+            ;;
+        list|'')
+            if [ -s "$QUIET_PATTERNS" ]; then
+                cat "$QUIET_PATTERNS"
+            else
+                echo "No patterns. The module ships a starter set - restore it with:"
+                echo "  quietctl reset-patterns"
+            fi
+            ;;
+        *) die "pattern: add, remove or list" ;;
+    esac
+}
+
+cmd_watch() {
+    case "$1" in
+        on)
+            [ "$(cap_get quiet_notification)" = "yes" ] \
+                || die "this ROM does not allow shell access to notifications"
+            qconf_set watch on
+            echo "quiet: watcher on."
+            echo "       It polls every $(qconf_get watch_interval 20)s, so matching"
+            echo "       notifications flash briefly before they are snoozed, and it"
+            echo "       costs some battery. Only apps added with 'quietctl add' are"
+            echo "       ever touched."
+            ;;
+        off)
+            qconf_set watch off
+            echo "quiet: watcher off"
+            ;;
+        *) die "watch: on or off" ;;
+    esac
+}
+
+cmd_reset() {
+    quiet_lift_all
+    quiet_dnd_off
+    while read -r _pkg; do
+        [ -n "$_pkg" ] && cmd notification disallow_dnd "$_pkg" >/dev/null 2>&1
+    done < "$QUIET_ALLOW" 2>/dev/null
+    rm -f "$QUIET_APPS" "$QUIET_ALLOW" "$QUIET_STATE"
+    qconf_set window ""
+    qconf_set watch off
+    log "quiet: reset"
+    echo "quiet: every app released, all rules forgotten. Stats kept."
+}
+
+restore_patterns() {
+    mkdir -p "$LUNE_DIR"
+    _src="$LUNE_MODDIR/patterns/reengagement.txt"
+    [ -f "$_src" ] || die "shipped pattern file is missing"
+    cp "$_src" "$QUIET_PATTERNS"
+    echo "quiet: restored the starter patterns ($(grep -cvE '^\s*(#|$)' "$QUIET_PATTERNS") rules)"
+}
+
+# ---------------------------------------------------------------------------
+
+require_root
+ensure_dirs
+
+case "$1" in
+    status|'')  cmd_status ;;
+    add)        [ -n "$2" ] || die "add: needs a package name"
+                cmd_add "$2" "$3" ;;
+    remove)     [ -n "$2" ] || die "remove: needs a package name"
+                cmd_remove "$2" ;;
+    list)       cmd_list ;;
+    window)     [ -n "$2" ] || die "window: needs HHMM-HHMM or 'off'"
+                cmd_window "$2" ;;
+    on)         quiet_enter; echo "quiet: on" ;;
+    off)        quiet_leave; echo "quiet: off" ;;
+    dnd)        case "$2" in
+                    on|off) qconf_set dnd "$2"; echo "quiet: do not disturb $2" ;;
+                    *) die "dnd: on or off" ;;
+                esac ;;
+    allow)      [ -n "$2" ] || die "allow: needs a package name"
+                quiet_allow_add "$2"; echo "quiet: $2 may break through" ;;
+    disallow)   [ -n "$2" ] || die "disallow: needs a package name"
+                quiet_allow_remove "$2"; echo "quiet: $2 no longer breaks through" ;;
+    allowed)    quiet_allow_list ;;
+    watch)      cmd_watch "$2" ;;
+    pattern)    cmd_pattern "$2" "$3" ;;
+    reset-patterns) restore_patterns ;;
+    stats)      cmd_stats ;;
+    probe)      quiet_probe_ops; echo "quiet: levers -> $(cap_get quiet_levers)" ;;
+    tick)       quiet_tick ;;
+    reset)      cmd_reset ;;
+    version)    echo "$VERSION" ;;
+    -h|--help|help) usage ;;
+    *)          usage; exit 1 ;;
+esac

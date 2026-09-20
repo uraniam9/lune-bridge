@@ -1,0 +1,10 @@
+# Example profile. Rename to <brand>-<model>.prop to make it live.
+#
+# Run `lunectl status` - the first line prints the brand and model to use.
+# A Pixel 8 Pro becomes google-pixel-8-pro.prop
+#
+# Contributed by: <your handle>
+# Measured on: <Android version, ROM>
+
+# Backlight percentage below which this panel's PWM strobe becomes visible.
+pwm_knee=50

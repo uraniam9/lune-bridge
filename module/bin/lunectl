@@ -1,0 +1,329 @@
+#!/system/bin/sh
+#
+# Lune Bridge - Display command line interface.
+#
+# This is the whole public surface of the module: the WebUI, the Magisk action
+# button and any third-party app all drive the display through these commands.
+# See docs/API.md for the contract and its stability guarantees.
+
+. "${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}/lib/core.sh"
+
+VERSION=2.0.0
+
+# The framework's integer brightness scale. config_screenBrightnessSettingMaximum
+# is 255 on effectively every device and our overlay does not change it.
+FW_BRIGHTNESS_MAX=255
+
+usage() {
+    cat <<'USAGE'
+lunectl - Lune Bridge, Display
+
+  status                  what this device can do, and what is active now
+  level <1-100|off>       set light level the safe way (the one to use)
+  warm <kelvin|off>       colour temperature, 1700-4082K
+  dim <0-99|off>          dim below the panel minimum, as a percentage
+  flicker <on|off>        hold the backlight above its PWM knee
+  knee <1-100>            tell Lune where this panel starts flickering
+  backlight <raw|auto>    write the panel node directly (advanced)
+  probe                   re-run capability detection
+  apply                   re-apply saved settings (used at boot)
+  reset                   undo everything Lune has changed
+  version
+
+Examples
+  lunectl level 8         a readable 3am screen, without the flicker
+  lunectl warm 1850       candlelight
+  lunectl reset           back to stock
+USAGE
+}
+
+# ---------------------------------------------------------------------------
+# brightness
+# ---------------------------------------------------------------------------
+
+set_framework_brightness() {
+    # set_framework_brightness <permille 0..1000>
+    _p=$(clamp "$1" 0 1000)
+
+    # The overlay drops the framework's floor to 0.0 so the system slider can
+    # reach the panel minimum. Lune's own writes stop one step short of the
+    # very bottom: a screen the user cannot read is a screen they cannot use to
+    # fix it, and nothing here needs that last step.
+    [ "$_p" -lt 1 ] && _p=1
+
+    # Android 12+ stores brightness as a float and only converts the legacy
+    # integer on some ROMs, so write whichever keys this device actually has
+    # rather than picking one and hoping.
+    if [ "$(setting_get system screen_brightness_float)" != "null" ]; then
+        if [ "$_p" -ge 1000 ]; then
+            _f=1.0
+        else
+            _f=$(printf '0.%03d' "$_p")
+        fi
+        setting_put system screen_brightness_float "$_f"
+    fi
+
+    _int=$(( _p * FW_BRIGHTNESS_MAX / 1000 ))
+    [ "$_int" -lt 1 ] && _int=1
+    setting_put system screen_brightness "$_int"
+}
+
+# ---------------------------------------------------------------------------
+# extra dim
+# ---------------------------------------------------------------------------
+
+set_extra_dim() {
+    # set_extra_dim <strength 0..99>
+    _s=$(clamp "$1" 0 "$(cap_get dim_max 90)")
+    if [ "$_s" -le 0 ]; then
+        setting_put secure reduce_bright_colors_activated 0
+        conf_set dim 0
+        return 0
+    fi
+    have extra_dim || return 1
+    setting_put secure reduce_bright_colors_level "$_s"
+    setting_put secure reduce_bright_colors_activated 1
+    conf_set dim "$_s"
+}
+
+# ---------------------------------------------------------------------------
+# warmth
+# ---------------------------------------------------------------------------
+
+set_warm() {
+    # set_warm <kelvin|off>
+    if [ "$1" = "off" ]; then
+        setting_put secure night_display_activated 0
+        conf_set warm off
+        return 0
+    fi
+    is_int "$1" || die "warm: expected a temperature in Kelvin, or 'off'"
+    _floor=$(cap_get warm_floor 2596)
+    _k=$(clamp "$1" "$_floor" 4082)
+    if [ "$_k" != "$1" ]; then
+        echo "lune: clamped ${1}K to ${_k}K (this device's floor is ${_floor}K)"
+        [ "$_floor" -gt 1700 ] && echo "      run 'lunectl status' - the overlay may not be in effect"
+    fi
+    have night_display || die "this device does not expose Night Light"
+    setting_put secure night_display_color_temperature "$_k"
+    setting_put secure night_display_activated 1
+    conf_set warm "$_k"
+}
+
+# ---------------------------------------------------------------------------
+# the combined path
+# ---------------------------------------------------------------------------
+
+set_level() {
+    # set_level <1..100>
+    _target=$(clamp "$1" 1 100)
+    conf_set level "$_target"
+
+    if [ "$(conf_get flicker off)" = "on" ] && have extra_dim; then
+        _knee=$(cap_get pwm_knee "$DEFAULT_PWM_KNEE_PCT")
+        set -- $(split_for_flicker "$_target" "$_knee")
+        _bl=$1
+        _strength=$2
+        set_framework_brightness $(( _bl * 10 ))
+        set_extra_dim "$_strength"
+
+        # Extra Dim tops out at 99% strength, which leaves ~5.4% of the signal.
+        # With a high knee the backlight is pinned well up, so the darkest
+        # reachable level is knee * 0.054 - on an 85% knee that is about 4%, and
+        # asking for 3% quietly gives you 4%. Say so rather than letting the
+        # number on screen disagree with the screen.
+        _delivered=$(( _bl * $(strength_to_keep "$_strength") / 1000 ))
+        if [ "$_delivered" -gt "$(( _target + 1 ))" ]; then
+            echo "lune: flicker-safe mode bottoms out near ${_delivered}% on this panel."
+            echo "      The backlight is held at ${_knee}% and Extra Dim is already at"
+            echo "      its ${_strength}% ceiling. Lower the knee for a darker floor,"
+            echo "      or turn flicker mode off to use the panel's own minimum."
+        fi
+
+        log "level=$_target flicker=on backlight=$_bl strength=$_strength delivered=$_delivered"
+        return 0
+    fi
+
+    # Without flicker mode, spend the top of the range on the backlight and
+    # only reach for Extra Dim once the panel has bottomed out. Extra Dim costs
+    # a little contrast, so it should not be used where it buys nothing.
+    if [ "$_target" -ge 10 ]; then
+        set_framework_brightness $(( _target * 10 ))
+        set_extra_dim 0
+        log "level=$_target backlight only"
+    elif have extra_dim; then
+        set_framework_brightness 0
+        _keep=$(( _target * 100 ))
+        set_extra_dim "$(keep_to_strength "$_keep")"
+        log "level=$_target backlight floor + extra dim"
+    else
+        # Below 10% the panel alone cannot go any further. Take it to its
+        # minimum and say that this is as dark as this device gets, rather
+        # than accepting a number we cannot honour.
+        set_framework_brightness 0
+        echo "lune: ${_target}% is below this panel's minimum, and Extra Dim"
+        echo "      is not available here, so this is as dark as it goes."
+        log "level=$_target clamped to panel minimum, no extra dim"
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# direct panel access
+# ---------------------------------------------------------------------------
+
+set_backlight_raw() {
+    _node=$(cap_get backlight_node)
+    [ -n "$_node" ] || die "no writable backlight node was found on this device"
+    if [ "$1" = "auto" ]; then
+        conf_set backlight_raw ""
+        echo "lune: released the panel node back to the framework"
+        return 0
+    fi
+    is_int "$1" || die "backlight: expected an integer, or 'auto'"
+    _max=$(cap_get backlight_max 255)
+    _v=$(clamp "$1" 0 "$_max")
+    node_write "$_node/brightness" "$_v" || die "the kernel rejected that write"
+    conf_set backlight_raw "$_v"
+    echo "lune: wrote $_v to $_node/brightness (max $_max)"
+    echo "      luned will hold it there; 'lunectl backlight auto' gives it back"
+}
+
+# ---------------------------------------------------------------------------
+# status
+# ---------------------------------------------------------------------------
+
+yn() { [ "$1" = "yes" ] && echo "yes" || echo "no"; }
+
+cmd_status() {
+    [ -f "$LUNE_CAPS" ] || die "not probed yet - run 'lunectl probe'"
+
+    echo "Lune Bridge - Display $VERSION"
+    echo "  device        $(cap_get brand) $(cap_get device), SDK $(cap_get sdk)"
+    echo
+
+    echo "Capabilities"
+    printf '  %-14s %s\n' "night light" "$(yn "$(cap_get night_display)")"
+    printf '  %-14s %s\n' "extra dim" "$(yn "$(cap_get extra_dim)")"
+    printf '  %-14s %s\n' "panel node" "$(cap_get backlight_node '(none found)')"
+    _dc=$(cap_get dc_nodes)
+    printf '  %-14s %s\n' "vendor dc" "${_dc:-none detected}"
+    echo
+
+    echo "Overlay"
+    _inst=$(cap_get overlay_installed no)
+    printf '  %-14s %s\n' "installed" "$(yn "$_inst")"
+    _wf=$(cap_get warm_floor 2596)
+    if [ "$(cap_get overlay_warmth)" = "yes" ]; then
+        printf '  %-14s in effect, warm floor %sK (stock 2596K)\n' "warmth" "$_wf"
+    else
+        printf '  %-14s NOT in effect, floor is %sK\n' "warmth" "$_wf"
+    fi
+    _dm=$(cap_get dim_max 90)
+    if [ "$(cap_get overlay_dim)" = "yes" ]; then
+        printf '  %-14s in effect, max strength %s%% (stock 90%%)\n' "dimming" "$_dm"
+    else
+        printf '  %-14s NOT in effect, max strength %s%%\n' "dimming" "$_dm"
+    fi
+    if [ "$_inst" = "yes" ] && [ "$(cap_get overlay_warmth)" != "yes" ]; then
+        echo
+        echo "  The overlay is installed but the framework is still clamping."
+        echo "  That usually means this ROM refuses third-party framework"
+        echo "  overlays. Everything below still works; the extra range does not."
+    fi
+    echo
+
+    echo "Now"
+    printf '  %-14s %s\n' "level" "$(conf_get level '-')"
+    printf '  %-14s %s\n' "flicker mode" "$(conf_get flicker off)"
+    _w=$(conf_get warm off)
+    if [ "$_w" = "off" ]; then
+        printf '  %-14s off\n' "warmth"
+    else
+        printf '  %-14s %sK\n' "warmth" "$_w"
+    fi
+    printf '  %-14s %s%%\n' "dim" "$(conf_get dim 0)"
+    printf '  %-14s %s%% (%s)\n' "pwm knee" \
+        "$(cap_get pwm_knee "$DEFAULT_PWM_KNEE_PCT")" "$(cap_get pwm_knee_source measured)"
+}
+
+# ---------------------------------------------------------------------------
+# lifecycle
+# ---------------------------------------------------------------------------
+
+cmd_apply() {
+    _w=$(conf_get warm off)
+    [ "$_w" != "off" ] && set_warm "$_w"
+    _l=$(conf_get level)
+    [ -n "$_l" ] && set_level "$_l"
+    _raw=$(conf_get backlight_raw)
+    [ -n "$_raw" ] && set_backlight_raw "$_raw" >/dev/null 2>&1
+    log "apply: warm=$_w level=$_l"
+}
+
+cmd_reset() {
+    setting_put secure night_display_activated 0
+    setting_put secure reduce_bright_colors_activated 0
+    setting_put secure reduce_bright_colors_level 50
+    set_framework_brightness 400
+    : > "$LUNE_CONF"
+    log "reset"
+    echo "lune: back to stock. The overlay stays until the module is removed."
+}
+
+# ---------------------------------------------------------------------------
+
+require_root
+ensure_dirs
+
+case "$1" in
+    status|'')
+        cmd_status
+        ;;
+    level)
+        [ -n "$2" ] || die "level: needs 1-100 or 'off'"
+        if [ "$2" = "off" ]; then cmd_reset; else set_level "$2"; fi
+        ;;
+    warm)
+        [ -n "$2" ] || die "warm: needs a temperature or 'off'"
+        set_warm "$2"
+        ;;
+    dim)
+        [ -n "$2" ] || die "dim: needs 0-99 or 'off'"
+        if [ "$2" = "off" ]; then set_extra_dim 0; else set_extra_dim "$2"; fi
+        ;;
+    flicker)
+        case "$2" in
+            on|off)
+                # Flicker-safe mode moves dimming into the colour matrix, so
+                # without Extra Dim there is nowhere for it to go. Say so
+                # rather than accepting the setting and doing nothing.
+                if [ "$2" = "on" ] && ! have extra_dim; then
+                    die "flicker-safe mode needs Extra Dim, which this device does not expose (Android 12+)"
+                fi
+                conf_set flicker "$2"
+                _l=$(conf_get level)
+                [ -n "$_l" ] && set_level "$_l"
+                echo "lune: flicker-safe mode $2"
+                ;;
+            *) die "flicker: on or off" ;;
+        esac
+        ;;
+    knee)
+        is_int "$2" || die "knee: needs 1-100"
+        cap_set pwm_knee "$(clamp "$2" 1 100)"
+        cap_set pwm_knee_source measured
+        _l=$(conf_get level)
+        [ -n "$_l" ] && set_level "$_l"
+        echo "lune: PWM knee set to $2%"
+        ;;
+    backlight)
+        [ -n "$2" ] || die "backlight: needs a value or 'auto'"
+        set_backlight_raw "$2"
+        ;;
+    probe)   "$LUNE_MODDIR/bin/lune-probe" ;;
+    apply)   cmd_apply ;;
+    reset)   cmd_reset ;;
+    version) echo "$VERSION" ;;
+    -h|--help|help) usage ;;
+    *)       usage; exit 1 ;;
+esac
