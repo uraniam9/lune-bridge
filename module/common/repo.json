@@ -1,0 +1,13 @@
+{
+  "support": "https://github.com/uraniam9/lune-bridge/issues",
+  "donate": "https://buymeacoffee.com/uraniam9",
+  "icon": "https://raw.githubusercontent.com/uraniam9/lune-bridge/main/assets/icon.png",
+  "readme": "https://raw.githubusercontent.com/uraniam9/lune-bridge/main/README.md",
+  "homepage": "https://github.com/uraniam9/lune-bridge",
+  "license": "GPL-3.0-or-later",
+  "categories": ["Display", "Tools"],
+  "note": {
+    "title": "Check it actually worked",
+    "message": "After rebooting, run: su -c lunectl status. Some ROMs refuse third-party framework overlays, and the module reports honestly whether the widened range is in effect rather than assuming it is."
+  }
+}
