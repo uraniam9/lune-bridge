@@ -1,0 +1,42 @@
+name: Device profile
+description: Share your panel's PWM knee so the next person does not have to guess
+labels: ["device profile"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is the most useful thing you can send.
+
+        The PWM knee is the backlight percentage below which your panel starts
+        strobing. It cannot be detected in software: it is a property of the
+        panel that a person has to see with their own eyes. But it is the same
+        for everyone with your phone, so measuring it once helps everybody who
+        buys the same device.
+
+        To find it: turn on flicker-safe mode, set a low level, and lower the
+        knee until the flicker stops. Looking slightly to one side of the
+        screen helps - peripheral vision catches flicker far better than
+        staring straight at it.
+
+  - type: input
+    id: knee
+    attributes:
+      label: Your measured knee
+      placeholder: "85"
+    validations:
+      required: true
+
+  - type: textarea
+    id: status
+    attributes:
+      label: lunectl status
+      description: "`su -c lunectl status` - the first line gives the exact brand and model the profile is keyed on"
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: credit
+    attributes:
+      label: How would you like to be credited
+      placeholder: "your handle, or 'anonymous'"

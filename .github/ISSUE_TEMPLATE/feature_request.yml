@@ -1,0 +1,29 @@
+name: Feature request
+description: Something it should do and does not
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: |
+        The problem, not the solution. "My screen still hurts at 3am" tells me
+        more than "add a gamma slider", because there may be a better answer
+        than the one either of us thought of first.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you had in mind
+      description: If you do have a solution in mind, describe it here.
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Which half
+      options:
+        - label: Display (warmth, dimming, flicker)
+        - label: Quiet Field (apps, notifications, quiet hours)
+        - label: Neither / not sure

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Does it work on my ROM?
+    url: https://github.com/uraniam9/lune-bridge#check-it-actually-worked
+    about: Run `lunectl status` first - it tells you plainly whether the overlay took effect.

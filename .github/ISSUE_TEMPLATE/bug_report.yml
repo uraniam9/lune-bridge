@@ -1,0 +1,51 @@
+name: Bug report
+description: Something does not work the way it says it does
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before anything else, please paste the output of `lunectl status`.
+        It answers most of what I would otherwise have to ask you, including
+        the one thing that matters most: whether the overlay is actually in
+        effect on your ROM.
+
+  - type: textarea
+    id: status
+    attributes:
+      label: lunectl status
+      description: "`su -c lunectl status`"
+      render: text
+    validations:
+      required: true
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you got instead.
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Device and ROM
+      placeholder: "Nothing A065, stock, Android 16"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: manager
+    attributes:
+      label: Root manager
+      options: [Magisk, KernelSU, APatch, Other]
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Module log (optional)
+      description: "`su -c 'cat /data/adb/lune/log'` - last 30 lines is plenty"
+      render: text
