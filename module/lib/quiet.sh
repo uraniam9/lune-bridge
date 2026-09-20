@@ -22,7 +22,7 @@
 # Sourced by quietctl and luned.
 
 # shellcheck source=core.sh
-. "${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}/lib/core.sh"
+. "${LUNE_MODDIR:-/data/adb/modules/lune_bridge}/lib/core.sh"
 
 QUIET_CONF=$LUNE_DIR/quiet.conf
 QUIET_APPS=$LUNE_DIR/quiet.apps

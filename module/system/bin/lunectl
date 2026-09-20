@@ -1,5 +1,5 @@
 #!/system/bin/sh
 # Thin wrapper so `su -c lunectl ...` works from anywhere. A real file rather
 # than a symlink, because zip-stored symlinks do not survive every installer.
-export LUNE_MODDIR=/data/adb/modules/lune_display_bridge
+export LUNE_MODDIR=/data/adb/modules/lune_bridge
 exec "$LUNE_MODDIR/bin/lunectl" "$@"

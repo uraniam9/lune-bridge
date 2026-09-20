@@ -383,13 +383,19 @@ here works from `lunectl` and `quietctl` on their own.
 
 ## Support
 
-Free, and staying that way. If it stopped your eyes hurting at 3am:
+Free, and staying that way.
 
-- [Buy me a coffee](https://buymeacoffee.com/uraniam9)
-- [GitHub Sponsors](https://github.com/sponsors/uraniam9)
+[Buy me a coffee](https://buymeacoffee.com/uraniam9) if it stopped your eyes
+hurting at 3am. It goes back into the work, and into the odd second-hand phone
+to test on.
 
-Reporting your PWM knee is worth more than money, though — see
-[docs/DEVICE-PROFILES.md](docs/DEVICE-PROFILES.md).
+The most useful thing you can send is still your PWM knee — it ships as a device
+profile so the next person with your phone gets a measured value instead of a
+guess. See [docs/DEVICE-PROFILES.md](docs/DEVICE-PROFILES.md).
+
+Support links live in one place: the `LINKS` block at the top of the script in
+`module/webroot/index.html`. A button only renders when its URL is set, so
+unfilled entries show nothing rather than a dead link.
 
 ## Licence
 

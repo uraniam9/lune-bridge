@@ -1,6 +1,7 @@
-id=lune_display_bridge
+id=lune_bridge
 name=Lune Bridge
 version=v2.0.0
 versionCode=20000
 author=uraniam9
-description=Candlelight warmth to 1700K, dimming below the panel minimum, and a flicker-safe mode for PWM eye strain - plus Quiet Field, which stops apps waking your screen. No Xposed. Companion module for SonoLune. Run: lunectl status / quietctl status
+description=Warmer, darker, calmer screens. Candlelight to 1700K, dimming below the panel minimum, flicker-safe mode for PWM eye strain, and Quiet Field to stop apps waking you. Companion to SonoLune.
+updateJson=https://github.com/uraniam9/lune-bridge/raw/main/update.json

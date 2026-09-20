@@ -19,7 +19,7 @@
 #     once an hour when nothing is configured, once a minute during quiet
 #     hours, and faster only if the notification watcher is deliberately on.
 
-. "${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}/lib/quiet.sh"
+. "${LUNE_MODDIR:-/data/adb/modules/lune_bridge}/lib/quiet.sh"
 
 # How long to wait for the framework before giving up on the first apply.
 BOOT_TIMEOUT=120

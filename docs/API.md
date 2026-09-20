@@ -9,7 +9,7 @@ not need.
 ## Detecting the module
 
 ```
-/data/adb/modules/lune_display_bridge/bin/lunectl version
+/data/adb/modules/lune_bridge/bin/lunectl version
 ```
 
 Exits `0` and prints a semver string if Lune is installed and the caller is
@@ -82,7 +82,7 @@ and follow semver. Human-readable `status` output is not part of it.
 
 ```kotlin
 object Lune {
-    private const val BIN = "/data/adb/modules/lune_display_bridge/bin/lunectl"
+    private const val BIN = "/data/adb/modules/lune_bridge/bin/lunectl"
 
     private fun su(cmd: String): Pair<Int, String> = try {
         val p = ProcessBuilder("su", "-c", cmd).redirectErrorStream(true).start()

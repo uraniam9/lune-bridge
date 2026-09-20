@@ -5,7 +5,7 @@
 # The attention half of the module. Same shape as lunectl: this is the whole
 # public surface, and docs/API.md is the contract.
 
-. "${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}/lib/quiet.sh"
+. "${LUNE_MODDIR:-/data/adb/modules/lune_bridge}/lib/quiet.sh"
 
 VERSION=2.0.0
 

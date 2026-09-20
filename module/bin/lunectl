@@ -6,7 +6,7 @@
 # button and any third-party app all drive the display through these commands.
 # See docs/API.md for the contract and its stability guarantees.
 
-. "${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}/lib/core.sh"
+. "${LUNE_MODDIR:-/data/adb/modules/lune_bridge}/lib/core.sh"
 
 VERSION=2.0.0
 

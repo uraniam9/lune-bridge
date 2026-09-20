@@ -4,7 +4,7 @@
   PASS no obvious bashisms (arrays, [[ ]], declare)
 
 2. Module metadata
-  PASS module id 'lune_display_bridge' matches Magisk's required pattern
+  PASS module id 'lune_bridge' matches Magisk's required pattern
   PASS module.prop has id
   PASS module.prop has name
   PASS module.prop has version

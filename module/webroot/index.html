@@ -64,6 +64,8 @@
   button:active { background: #302a28; }
   button.on { background: var(--warm-dim); border-color: var(--warm); color: #fff5e8; }
   button.tiny { padding: 5px 9px; font-size: 12px; }
+  /* The hold gesture must not be interpreted as a scroll. */
+  button.hold { touch-action: none; user-select: none; }
   .btns { display: flex; gap: 8px; flex-wrap: wrap; }
   .btns button { flex: 1 1 auto; }
   .note { font-size: 12.5px; color: var(--muted); margin-top: 10px; line-height: 1.5; }
@@ -81,6 +83,19 @@
     color: var(--muted); margin: 0; font-family: ui-monospace, Menlo, Consolas, monospace;
   }
   .divider { height: 1px; background: var(--line); margin: 16px 0 14px; }
+  .timerow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .timerow input[type=time] {
+    flex: 1 1 auto; min-width: 96px; padding: 8px 10px; border-radius: 10px;
+    font: inherit; background: #211d1b; border: 1px solid var(--line);
+    color: var(--text); color-scheme: dark;
+  }
+  .hero {
+    border: 1px solid var(--warm-dim); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 14px;
+    background: linear-gradient(160deg, #221a12, #1a1613);
+  }
+  .hero h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: #f3d9b4; }
+  .hero p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
   .applist { max-height: 300px; overflow-y: auto; margin-top: 10px; }
   .app .pkg { color: var(--muted); font-size: 11px; word-break: break-all; }
   .app {
@@ -90,6 +105,15 @@
   .app:first-child { border-top: none; }
   .app .name { flex: 1; word-break: break-all; }
   .app .levers { color: var(--muted); font-size: 11.5px; }
+  .dimmed { opacity: .4; }
+  #toast {
+    position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
+    background: #2b2522; border: 1px solid var(--warm-dim); color: var(--text);
+    padding: 10px 16px; border-radius: 999px; font-size: 13px; max-width: 88%;
+    text-align: center; opacity: 0; pointer-events: none;
+    transition: opacity .2s; z-index: 50;
+  }
+  #toast.show { opacity: 1; }
   .hidden { display: none; }
 </style>
 </head>
@@ -97,6 +121,35 @@
 
 <h1>Lune Bridge</h1>
 <div class="sub" id="device">reading device…</div>
+
+<div class="hero">
+  <h3>Made for nights, not for screens</h3>
+  <p>
+    Lune Bridge is the root half of <strong>SonoLune</strong> — a calm-first
+    sleep and focus app. SonoLune gives you the warmth, the sound and the
+    ritual; this module removes the ceiling Android puts on them, so the light
+    comes from the display itself instead of a grey sheet laid over it.
+  </p>
+  <div class="btns" id="heroLinks" style="margin-top:12px"></div>
+</div>
+
+<div class="card hidden" id="firstRun">
+  <h2>First time here</h2>
+  <p class="note" style="margin-top:0">
+    <strong>Light level</strong> is how bright you want the screen, 1 to 100.
+    Below about 10 it goes further down than the system slider can.<br><br>
+    <strong>Warmth</strong> is colour temperature. 1700K is candlelight; stock
+    Android stops at 2596K.<br><br>
+    <strong>Flicker-safe mode</strong> is for eye strain. Most OLED panels
+    strobe at low brightness; this keeps the backlight up and takes the
+    darkness out of the colour instead, so there is nothing to strobe.<br><br>
+    Nothing here is permanent. <strong>Reset to stock</strong> at the bottom of
+    this tab puts everything back, and removing the module undoes it entirely.
+  </p>
+  <div class="btns" style="margin-top:12px">
+    <button id="firstRunDone">Got it</button>
+  </div>
+</div>
 
 <div class="tabs">
   <button id="tabDisplay" class="sel">Display</button>
@@ -106,6 +159,7 @@
 <!-- ===================== DISPLAY ===================== -->
 <div id="paneDisplay">
 
+  <div id="ownership" class="banner hidden"></div>
   <div id="banner" class="banner hidden"></div>
 
   <div class="card">
@@ -113,6 +167,16 @@
     <div class="row"><span class="k">Target</span><span class="val" id="levelVal">—</span></div>
     <input type="range" id="level" min="1" max="100" value="50" disabled>
     <div class="scale"><span>1 · barely lit</span><span>100</span></div>
+    <!-- The interesting end of this range is the bottom, and hitting 3 on a
+         100-point slider with a thumb is a fight. Presets make the low end
+         reachable in one tap. -->
+    <div class="btns" style="margin-top:10px">
+      <button data-level="1">1</button>
+      <button data-level="3">3</button>
+      <button data-level="8">8</button>
+      <button data-level="25">25</button>
+      <button data-level="100">100</button>
+    </div>
     <div class="note" id="levelNote"></div>
   </div>
 
@@ -141,15 +205,19 @@
       brightness gives you eye strain or headaches, this is the setting that
       helps. Costs a little contrast in dark scenes.
     </div>
-    <div class="row" style="margin-top:12px">
-      <span class="k">PWM knee</span><span class="val" id="kneeVal">—</span>
-    </div>
-    <input type="range" id="knee" min="5" max="100" value="50" disabled>
-    <div class="btns" style="margin-top:10px">
-      <button data-knee="60">60%</button>
-      <button data-knee="70">70%</button>
-      <button data-knee="80">80%</button>
-      <button data-knee="90">90%</button>
+    <!-- The knee only means anything while flicker-safe mode is on, so it is
+         dimmed and inert until then, and says why if you reach for it. -->
+    <div id="kneeGroup">
+      <div class="row" style="margin-top:12px">
+        <span class="k">PWM knee</span><span class="val" id="kneeVal">—</span>
+      </div>
+      <input type="range" id="knee" min="5" max="100" value="50" disabled>
+      <div class="btns" style="margin-top:10px">
+        <button data-knee="60">60%</button>
+        <button data-knee="70">70%</button>
+        <button data-knee="80">80%</button>
+        <button data-knee="90">90%</button>
+      </div>
     </div>
     <div class="note">
       Lower this until flicker stops being visible. The default is a guess, not
@@ -163,7 +231,24 @@
     <div id="caps"></div>
     <div class="btns" style="margin-top:14px">
       <button id="refresh">Re-probe</button>
-      <button id="reset">Reset to stock</button>
+      <button id="reset" class="hold">Hold to reset</button>
+    </div>
+    <div class="note">
+      <strong>Re-probe</strong> re-checks what this device supports — Night
+      Light, Extra Dim, the panel node, and whether the overlay is actually in
+      effect. It changes nothing; it only refreshes what is shown above.
+    </div>
+    <div class="note">
+      <strong>Reset to stock</strong> clears warmth, dimming and flicker-safe
+      mode and puts brightness back to something readable. Hold the button for
+      a second — a screen you cannot read is a screen you cannot use to fix
+      itself, so this one should not be reachable by a mis-tap.
+    </div>
+    <div class="note">
+      If it ever goes too dark to read: hold that button, or from a computer
+      run <code>adb shell su -c "lunectl reset"</code>. Removing the module
+      restores stock display settings on its way out, and holding
+      <strong>Volume Down</strong> during boot disables every module.
     </div>
   </div>
 
@@ -189,10 +274,31 @@
       <button data-window="2300-0600">23:00 – 06:00</button>
       <button id="windowOff">Off</button>
     </div>
+    <div class="timerow" style="margin-top:12px">
+      <span class="k">Custom</span>
+      <input type="time" id="winFrom" value="21:00">
+      <span class="k">to</span>
+      <input type="time" id="winTo" value="08:00">
+      <button class="tiny" id="winSet">Set</button>
+    </div>
+    <div class="note" id="winNote" style="color:var(--bad)"></div>
+    <div class="row" style="margin-top:14px">
+      <span class="k">Use Do Not Disturb</span>
+      <span class="v"><button id="dndBtn" class="tiny">on</button></span>
+    </div>
     <div class="note">
-      Windows that cross midnight work as you would expect. Do Not Disturb is
-      set to <strong>priority</strong> rather than total silence, so alarms
-      still go off.
+      Quiet hours do <strong>two independent things</strong>, and this switch
+      controls the second:
+      <br><br>
+      <strong>1.</strong> Apply the levers to the apps you listed below. Does
+      nothing if that list is empty.
+      <br>
+      <strong>2.</strong> Turn on Do Not Disturb for the <em>whole phone</em>
+      — which is why setting a window quiets everything even with no apps
+      chosen. Turn this off if you only want the per-app levers.
+      <br><br>
+      Do Not Disturb is set to <strong>priority</strong>, not total silence, so
+      alarms still go off. Windows that cross midnight work as you expect.
     </div>
     <div class="row" style="margin-top:12px">
       <span class="k">Quiet mode right now</span>
@@ -240,6 +346,17 @@
       <button id="qrefresh">Re-probe</button>
       <button id="qreset">Release everything</button>
     </div>
+    <div class="note">
+      <strong>Re-probe</strong> re-checks what this Android version allows —
+      which levers exist, whether notifications are reachable. Nothing changes
+      on your device; it only refreshes what is shown above. Worth a tap after
+      a system update.
+      <br><br>
+      <strong>Release everything</strong> hands every quieted app its
+      permissions back, clears the allow list and the schedule, and turns Do
+      Not Disturb off. Your apps behave normally again immediately. Stats are
+      kept; nothing else survives.
+    </div>
   </div>
 
   <div class="card">
@@ -260,19 +377,24 @@
     installed it stops drawing a matte over your screen and hands warmth and
     dimming to the display pipeline instead.
   </p>
-  <div class="btns" style="margin-top:12px">
-    <button data-url="https://play.google.com/store/apps/details?id=com.soundsoftlab.sonolune">Get SonoLune</button>
-    <button data-url="https://github.com/uraniam9/lune-bridge">Source</button>
-  </div>
-  <div class="btns" style="margin-top:8px">
-    <button data-url="https://buymeacoffee.com/uraniam9">Buy me a coffee</button>
-    <button data-url="https://github.com/sponsors/uraniam9">Donate</button>
-  </div>
-  <div class="note">
-    The module is free and always will be. If it stopped your eyes hurting at
-    3am, a coffee is a kind way to say so.
+  <div class="btns" id="aboutLinks" style="margin-top:12px"></div>
+  <div class="note" id="aboutSupport"></div>
+  <div class="divider"></div>
+  <div class="note" style="margin-top:0">
+    <strong>No warranty.</strong> This is a root module: it changes display
+    settings and app permissions on your device, and you use it at your own
+    risk. It is provided as-is with no warranty of any kind, and the author is
+    not liable for any damage or data loss.
+    <br><br>
+    In practice it is conservative by design — it only moves limits Android
+    already enforces, never writes to a hardware node it does not recognise,
+    lifts every permission it set when uninstalled, and stands down on its own
+    if a boot fails. But nobody can test every device, and yours might be the
+    one that behaves differently.
   </div>
 </div>
+
+<div id="toast"></div>
 
 <script>
 // ---------------------------------------------------------------------------
@@ -301,7 +423,23 @@ function exec(cmd) {
   });
 }
 
-const MOD = '/data/adb/modules/lune_display_bridge';
+// ---------------------------------------------------------------------------
+// Links.
+//
+// The only place these are written. A button renders only when its URL is set,
+// so an unfilled entry shows nothing rather than a dead link — a donate button
+// that 404s is worse than no donate button.
+// ---------------------------------------------------------------------------
+const LINKS = {
+  sonolune: 'https://play.google.com/store/apps/details?id=com.soundsoftlab.sonolune',
+  // One support link, not two. A second button pointing at the same
+  // intention makes people choose instead of act, and Buy Me a Coffee already
+  // carries recurring support behind "Make this monthly".
+  source:   'https://github.com/uraniam9/lune-bridge',
+  coffee:   'https://buymeacoffee.com/uraniam9',
+};
+
+const MOD = '/data/adb/modules/lune_bridge';
 const ENV = 'LUNE_MODDIR=' + MOD + ' ';
 const lune  = (a) => exec(ENV + MOD + '/bin/lunectl '  + a);
 const quiet = (a) => exec(ENV + MOD + '/bin/quietctl ' + a);
@@ -316,6 +454,15 @@ function parseKV(text) {
 }
 
 const $ = (id) => document.getElementById(id);
+
+let toastTimer = null;
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2600);
+}
 let caps = {}, conf = {}, qconf = {}, qstate = {};
 
 // Slider changes fire continuously; applying on every pixel would queue dozens
@@ -366,6 +513,88 @@ function appRow(pkg, right) {
 // The WebView will not open an external link on its own, so hand it to Android.
 function openUrl(url) {
   exec("am start -a android.intent.action.VIEW -d '" + url + "'");
+}
+
+// ---------------------------------------------------------------------------
+// SonoLune
+//
+// If the app is installed, offer to open it - and open the screen that matches
+// what you are looking at, rather than dumping you on its home. SonoLune routes
+// shortcuts through lunarArcOpen/arcProfile extras, which is the same door.
+//
+// If it is not installed, the same buttons become the Play listing.
+// ---------------------------------------------------------------------------
+const SONOLUNE_PKG = 'com.soundsoftlab.sonolune';
+let sonoluneInstalled = false;
+let sonoluneDriving = false;   // the app is set to drive the display itself
+
+function openSonoLune(route) {
+  if (!sonoluneInstalled) {
+    if (LINKS.sonolune) openUrl(LINKS.sonolune);
+    return;
+  }
+  if (route) {
+    exec('am start -n ' + SONOLUNE_PKG + '/.MainActivity'
+       + ' --ez lunarArcOpen true --es kind shortcut'
+       + " --es arcProfile '" + route + "'");
+  } else {
+    exec('monkey -p ' + SONOLUNE_PKG + ' -c android.intent.category.LAUNCHER 1');
+  }
+}
+
+async function detectSonoLune() {
+  // One su call for both facts. The pref is Flutter's SharedPreferences XML,
+  // where LuneBridge.setEnabled stores the user's opt-in.
+  const prefs = '/data/data/' + SONOLUNE_PKG + '/shared_prefs/FlutterSharedPreferences.xml';
+  const r = await exec(
+    'pm path ' + SONOLUNE_PKG + ' >/dev/null 2>&1 && echo APP_INSTALLED; '
+    + 'grep -q \'flutter.lune_bridge_enabled" value="true"\' ' + prefs
+    + ' 2>/dev/null && echo APP_DRIVING'
+  );
+  sonoluneInstalled = /APP_INSTALLED/.test(r.stdout);
+  sonoluneDriving = /APP_DRIVING/.test(r.stdout);
+}
+
+// When SonoLune is driving the display, it owns warmth and dimming: its light
+// pipeline rewrites them whenever its own state changes, so a value set here
+// survives only until then. Saying so beats letting someone think the slider
+// is broken.
+function renderOwnership() {
+  const el = $('ownership');
+  if (!el) return;
+  if (!sonoluneDriving) { el.classList.add('hidden'); return; }
+  el.className = 'banner bad';
+  el.innerHTML = 'SonoLune is set to drive the display. Warmth and light level '
+    + 'here will be overwritten the next time its light field changes. Turn '
+    + '<em>Lune Bridge</em> off in SonoLune → Labs → Screen &amp; rendering '
+    + 'to control it from here instead.';
+  el.classList.remove('hidden');
+}
+
+function renderAbout() {
+  const buttons = [
+    ['Get SonoLune', LINKS.sonolune],
+    ['Source', LINKS.source],
+    ['Buy me a coffee', LINKS.coffee],
+  ].filter(([, url]) => url);
+
+  $('aboutLinks').innerHTML = buttons
+    .map(([label, url]) => '<button data-url="' + url + '">' + label + '</button>')
+    .join('');
+
+  // Installed: open the matching screen. Not installed: the Play listing.
+  $('heroLinks').innerHTML = sonoluneInstalled
+    ? '<button data-route="">Open SonoLune</button>'
+      + '<button data-route="/light">Light suite</button>'
+      + '<button data-route="/labs">Screen &amp; rendering</button>'
+    : (LINKS.sonolune ? '<button data-url="' + LINKS.sonolune + '">Get SonoLune</button>' : '');
+
+  $('aboutSupport').textContent = LINKS.coffee
+    ? 'The module is free and always will be. If it stopped your eyes hurting '
+      + 'at 3am, a coffee is a kind way to say so.'
+    : 'The module is free and always will be. Reporting your PWM knee is worth '
+      + 'more than money — it ships as a device profile so the next person with '
+      + 'your phone gets a measured value instead of a guess.';
 }
 
 // ------------------------------- tabs -------------------------------------
@@ -473,7 +702,13 @@ function syncDisplay() {
   $('flicker').textContent = on ? 'On' : 'Off';
   $('flicker').classList.toggle('on', on);
 
-  ['level', 'warm', 'knee'].forEach((id) => { $(id).disabled = false; });
+  ['level', 'warm'].forEach((id) => { $(id).disabled = false; });
+
+  // The knee is a child of flicker-safe mode: with the mode off it changes
+  // nothing, so leaving it live would be a control that silently does nothing.
+  $('kneeGroup').classList.toggle('dimmed', !on);
+  $('knee').disabled = !on;
+  document.querySelectorAll('[data-knee]').forEach((b) => { b.disabled = !on; });
 }
 
 async function load() {
@@ -513,16 +748,96 @@ document.querySelectorAll('[data-knee]').forEach((btn) => {
     await load();
   });
 });
+document.querySelectorAll('[data-level]').forEach((btn) => {
+  btn.addEventListener('click', async () => {
+    await lune('level ' + btn.dataset.level);
+    await load();
+  });
+});
 $('warmOff').addEventListener('click', async () => { await lune('warm off'); await load(); });
 document.querySelectorAll('[data-warm]').forEach((btn) => {
   btn.addEventListener('click', async () => { await lune('warm ' + btn.dataset.warm); await load(); });
 });
+$('kneeGroup').addEventListener('click', (e) => {
+  if (conf.flicker !== 'on') {
+    e.stopPropagation();
+    toast('Turn on flicker-safe mode first — the knee only applies to it.');
+  }
+}, true);
+
 $('flicker').addEventListener('click', async () => {
   await lune('flicker ' + (conf.flicker === 'on' ? 'off' : 'on'));
   await load();
 });
 $('refresh').addEventListener('click', async () => { await lune('probe'); await load(); });
-$('reset').addEventListener('click', async () => { await lune('reset'); await load(); });
+
+// Reset is hold-to-confirm, not tap. It is the way back from a screen too dark
+// to read, so it has to be impossible to hit by accident and still reachable
+// when you can barely see the button.
+(function holdToReset() {
+  const btn = $('reset');
+  const HOLD_MS = 1000;
+  let timer = null, fired = false, holding = false;
+
+  const finish = async () => {
+    fired = true;
+    holding = false;
+    btn.textContent = 'Resetting…';
+    await lune('reset');
+    await load();
+    btn.textContent = 'Hold to reset';
+    btn.classList.remove('on');
+  };
+
+  const start = (e) => {
+    // Without this the WebView can claim the gesture as a scroll and fire
+    // pointercancel almost immediately, which is why the first version of this
+    // never completed on a phone. touch-action:none in the CSS stops the claim;
+    // preventDefault here stops the synthetic mouse events that follow a touch
+    // from starting a second timer.
+    if (e.cancelable) e.preventDefault();
+    if (holding) return;
+    holding = true;
+    fired = false;
+    btn.textContent = 'Keep holding…';
+    btn.classList.add('on');
+    clearTimeout(timer);
+    timer = setTimeout(finish, HOLD_MS);
+  };
+
+  const cancel = () => {
+    if (!holding) return;
+    holding = false;
+    clearTimeout(timer);
+    timer = null;
+    if (!fired) {
+      btn.textContent = 'Hold to reset';
+      btn.classList.remove('on');
+    }
+  };
+
+  // Both families: some WebViews deliver only touch events, some only pointer.
+  // Guarding on `holding` above makes the overlap harmless.
+  ['pointerdown', 'touchstart'].forEach((t) =>
+    btn.addEventListener(t, start, { passive: false }));
+  ['pointerup', 'pointercancel', 'touchend', 'touchcancel'].forEach((t) =>
+    btn.addEventListener(t, cancel));
+  // Deliberately NOT pointerleave/mouseleave: a finger wobbling a pixel inside
+  // the button should not abort a hold.
+  btn.addEventListener('click', (e) => e.preventDefault());
+})();
+
+// First-run guide. localStorage can be empty or throw in a WebView with site
+// data cleared, so a failure just means the guide shows again - never an error.
+(function firstRun() {
+  let seen = false;
+  try { seen = localStorage.getItem('lune_seen_guide') === '1'; } catch (_) {}
+  if (!seen) $('firstRun').classList.remove('hidden');
+  $('firstRunDone').addEventListener('click', () => {
+    $('firstRun').classList.add('hidden');
+    try { localStorage.setItem('lune_seen_guide', '1'); } catch (_) {}
+  });
+})();
 
 // ----------------------------- quiet field --------------------------------
 // Cycling order for a tap on a quieted app. Deliberately does not include
@@ -541,10 +856,25 @@ function renderQuiet() {
   $('quietNow').textContent = mode;
   $('quietNow').classList.toggle('on', mode === 'on');
 
-  const w = qconf.window;
+  // Show which window is active. Without this the preset buttons and Off look
+  // identical whatever the state, so tapping Off while already off reads as a
+  // dead button rather than as "already off".
+  const w = qconf.window || '';
   $('windowVal').textContent = w
     ? w.slice(0, 2) + ':' + w.slice(2, 4) + ' – ' + w.slice(5, 7) + ':' + w.slice(7, 9)
     : 'not scheduled';
+  document.querySelectorAll('[data-window]').forEach((b) => {
+    b.classList.toggle('on', b.dataset.window === w);
+  });
+  $('windowOff').classList.toggle('on', !w);
+  if (w) {
+    $('winFrom').value = w.slice(0, 2) + ':' + w.slice(2, 4);
+    $('winTo').value = w.slice(5, 7) + ':' + w.slice(7, 9);
+  }
+
+  const dnd = (qconf.dnd || 'on') === 'on';
+  $('dndBtn').textContent = dnd ? 'on' : 'off';
+  $('dndBtn').classList.toggle('on', dnd);
 
   const watching = qconf.watch === 'on';
   $('watch').textContent = watching ? 'On' : 'Off';
@@ -661,14 +991,72 @@ document.addEventListener('click', async (e) => {
     await quiet('window ' + d.window); await loadQuiet();
   } else if (d.url) {
     openUrl(d.url);
+  } else if (d.route !== undefined) {
+    openSonoLune(d.route);
   }
 });
 
 $('windowOff').addEventListener('click', async () => { await quiet('window off'); await loadQuiet(); });
+
+// Custom window.
+//
+// <input type="time"> is supposed to give 24h "HH:MM" whatever it displays,
+// but not every Android WebView implements it - some fall back to a plain text
+// box and hand back whatever was typed, including "09:00 PM". Parsing only the
+// spec form silently did nothing on those, which is indistinguishable from a
+// broken button. Accept what people can actually produce, and say so when it
+// cannot be read.
+function parseTime(raw) {
+  const s = String(raw || '').trim().toUpperCase();
+  if (!s) return null;
+  const m = s.match(/^(\d{1,2})[:.\s]?(\d{2})\s*(AM|PM)?$/);
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  if (isNaN(h) || isNaN(min) || min > 59) return null;
+  if (m[3] === 'PM' && h < 12) h += 12;
+  if (m[3] === 'AM' && h === 12) h = 0;
+  if (h > 23) return null;
+  return String(h).padStart(2, '0') + String(min).padStart(2, '0');
+}
+
+function windowNote(msg) {
+  const el = $('winNote');
+  if (el) el.textContent = msg || '';
+}
+
+$('winSet').addEventListener('click', async () => {
+  const from = parseTime($('winFrom').value);
+  const to = parseTime($('winTo').value);
+  if (!from || !to) {
+    windowNote('Could not read those times. Use 24-hour HH:MM, e.g. 21:00.');
+    return;
+  }
+  if (from === to) {
+    windowNote('Start and end must differ.');
+    return;
+  }
+  windowNote('');
+  const r = await quiet('window ' + from + '-' + to);
+  if (r.errno !== 0 && r.stdout && /must look like|needs/i.test(r.stdout)) {
+    windowNote(r.stdout.trim());
+  }
+  await loadQuiet();
+});
 $('quietNow').addEventListener('click', async () => {
   await quiet(qstate.mode === 'on' ? 'off' : 'on');
   await loadQuiet();
 });
+$('dndBtn').addEventListener('click', async () => {
+  const next = (qconf.dnd || 'on') === 'on' ? 'off' : 'on';
+  await quiet('dnd ' + next);
+  if (next === 'off') await quiet('off');   // lift DND immediately, not next tick
+  await loadQuiet();
+  toast(next === 'on'
+    ? 'Do Not Disturb will come on during quiet hours.'
+    : 'Quiet hours will only apply the per-app levers now.');
+});
+
 $('watch').addEventListener('click', async () => {
   await quiet('watch ' + (qconf.watch === 'on' ? 'off' : 'on'));
   await loadQuiet();
@@ -676,7 +1064,12 @@ $('watch').addEventListener('click', async () => {
 $('qrefresh').addEventListener('click', async () => { await quiet('probe'); await loadQuiet(); });
 $('qreset').addEventListener('click', async () => { await quiet('reset'); await loadQuiet(); });
 
-load();
+(async () => {
+  await detectSonoLune();
+  renderAbout();
+  renderOwnership();
+  await load();
+})();
 </script>
 </body>
 </html>

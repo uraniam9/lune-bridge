@@ -12,7 +12,7 @@ LUNE_CONF=$LUNE_DIR/config
 LUNE_CAPS=$LUNE_DIR/caps
 LUNE_LOG=$LUNE_DIR/log
 LUNE_BOOT_GUARD=$LUNE_DIR/boot-pending
-LUNE_MODDIR=${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}
+LUNE_MODDIR=${LUNE_MODDIR:-/data/adb/modules/lune_bridge}
 
 # AOSP's reduce-bright-colors ramp is (1 - 0.9556*strength). Kept in permille
 # so the dim maths stays in integers.

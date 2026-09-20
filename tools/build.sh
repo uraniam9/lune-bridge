@@ -24,7 +24,16 @@ say()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m ! \033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m !! \033[0m %s\n' "$*" >&2; exit 1; }
 
-[ "${1:-}" = "--clean" ] && { rm -rf "$BUILD" "$DIST"; say "cleaned"; }
+# Empty the directories rather than remove them. On Windows a directory that
+# anything still holds a handle on - an open shell, a file browser, a server -
+# cannot be deleted, and `rm -rf` on it fails the whole build under `set -e`.
+# Clearing the contents achieves the same thing and does not care.
+if [ "${1:-}" = "--clean" ]; then
+    rm -rf "$BUILD"/* "$BUILD"/.[!.]* 2>/dev/null || true
+    rm -rf "$DIST"/*  "$DIST"/.[!.]*  2>/dev/null || true
+    rm -rf "$BUILD" "$DIST" 2>/dev/null || true
+    say "cleaned"
+fi
 
 # ---------------------------------------------------------------------------
 # Locate the toolchain

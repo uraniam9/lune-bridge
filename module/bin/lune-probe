@@ -17,7 +17,7 @@
 #      happens is a good way to hand someone a black screen on boot.
 
 # shellcheck source=../lib/core.sh
-. "${LUNE_MODDIR:-/data/adb/modules/lune_display_bridge}/lib/core.sh"
+. "${LUNE_MODDIR:-/data/adb/modules/lune_bridge}/lib/core.sh"
 
 ensure_dirs
 
