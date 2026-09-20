@@ -200,7 +200,7 @@ cp "$BUILD/overlays/"*.apk "$STAGE/overlays/"
 : > "$STAGE/system/product/overlay/.keep"
 
 mkdir -p "$DIST"
-ZIP="$DIST/LuneDisplayBridge-v$VERSION.zip"
+ZIP="$DIST/LuneBridge-v$VERSION.zip"
 
 "$PYTHON" - "$STAGE" "$ZIP" <<'PYZIP'
 import os, sys, zipfile, stat

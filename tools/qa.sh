@@ -25,7 +25,7 @@ check() { if [ "$2" = "0" ]; then ok "$1"; else bad "$1"; fi; }
 
 MODID=$(grep '^id=' module/module.prop | cut -d= -f2)
 VERSION=$(grep '^version=' module/module.prop | cut -d= -f2 | tr -d 'v')
-ZIP="dist/LuneDisplayBridge-v$VERSION.zip"
+ZIP="dist/LuneBridge-v$VERSION.zip"
 
 # ---------------------------------------------------------------------------
 section "1. Shell syntax"

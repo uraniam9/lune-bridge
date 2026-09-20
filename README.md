@@ -203,7 +203,7 @@ you nothing.
 Requires Android 9+ and Magisk 20.4+, KernelSU or APatch. Android 12+ for the
 dimming feature specifically.
 
-1. Download `LuneDisplayBridge-v2.0.0.zip` from Releases.
+1. Download `LuneBridge-v2.0.0.zip` from Releases.
 2. Flash it in Magisk / KernelSU / APatch.
 3. Reboot.
 4. `su -c lunectl status`
@@ -330,7 +330,7 @@ Needs an Android SDK (build-tools + one platform), a JDK, and Python 3.
 ./tools/build.sh
 ```
 
-Produces `dist/LuneDisplayBridge-v2.0.0.zip`. The build computes the colour
+Produces `dist/LuneBridge-v2.0.0.zip`. The build computes the colour
 ramp from source and **refuses to continue if the ramp fails its own
 validation**, so a bad curve cannot reach a release.
 
