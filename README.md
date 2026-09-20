@@ -5,8 +5,8 @@ Android's display pipeline the range it already has the hardware for, and
 **Quiet Field**, which stops apps taking your attention when you did not offer
 it.
 
-Both are built the same way — by driving mechanisms Android already has rather
-than inventing new ones. **Neither needs Xposed or LSPosed.** Nothing here
+Both work the same way. They drive mechanisms Android already has instead of
+inventing new ones. **Neither needs Xposed or LSPosed.** Nothing here
 hooks a process or patches a framework method, which is why it survives ROM
 updates and behaves the same on a Pixel and on a heavily skinned OEM build.
 
@@ -25,8 +25,8 @@ su -c quietctl window 2100-0800    # quiet hours. Alarms still work.
 
 Android can already tint your screen to candlelight and dim it far below the
 brightness slider's floor. It does both in the compositor, with no overlay
-window and no accessibility service. It just refuses to go that far — the
-limits are constants in `framework-res`, and they are conservative.
+window and no accessibility service. It just refuses to go that far. The limits
+are constants in `framework-res`, and they are set conservatively.
 
 This module moves those limits, correctly.
 
@@ -50,7 +50,7 @@ compositor before anything reaches the panel:
 | Screenshots / recording | blacked out | clean |
 | Secure surfaces (banking, DRM) | excluded | covered |
 | Contrast at low light | crushed | preserved |
-| Permissions needed | accessibility or overlay | none — it is a root module |
+| Permissions needed | accessibility or overlay | none, it is a root module |
 | Cost | an extra composited layer | none, it is a colour matrix |
 
 Lune does not add a mechanism. It unlocks the ones that are already there.
@@ -62,8 +62,8 @@ Lune does not add a mechanism. It unlocks the ones that are already there.
 ### 1. Warmth down to 1700K, with a refitted colour ramp
 
 Night Light stops at 2596K. Lowering that limit is a one-line overlay and
-plenty of tweaks do exactly that — but it produces a washed-out tint rather
-than candlelight, and it is worth understanding why.
+plenty of tweaks do exactly that. What you get is a washed-out tint rather than
+candlelight, and the reason is worth knowing.
 
 `ColorDisplayService` computes the tint from a quadratic, `a·T² + b·T + c`, per
 channel. AOSP fits that quadratic over 2596–4082K **only**. Evaluate it at
@@ -75,7 +75,7 @@ new ramp from the Planckian locus, and constrains it so that:
 
 - it is **exact at 4082K**, so the top of the slider is untouched;
 - it is **exact at the new floor**, at the true gamut-clipped blackbody value;
-- it is **monotonic**, so warming never starts adding blue back — an
+- it is **monotonic**, so warming never starts adding blue back. An
   unconstrained least-squares fit turns over inside the range and does exactly
   that, which reads as a bug;
 - it **never goes negative**, which would invert a channel instead of warming it.
@@ -91,7 +91,7 @@ hardware colour matrix. It is the right mechanism and it is already on your
 phone. It is also clamped to 25–90% strength.
 
 At 90% the stock ramp leaves 14% of the signal. Lune raises the ceiling to 99%,
-which leaves 5.4% — roughly another 2.6× darker. That is the difference between
+which leaves 5.4%, roughly another 2.6× darker. That is the difference between
 "dim" and "readable at 3am without waking yourself up".
 
 Lune also drops `config_screenBrightnessSettingMinimumFloat` to `0.0`, which is
@@ -108,8 +108,8 @@ have one at all.
 
 Flicker-safe mode does not need one. It holds the backlight **above** the knee
 where strobing gets bad, and takes the remaining dimming out of the colour
-matrix instead — which does not strobe. You get the brightness you asked for,
-without the flicker that normally comes with it.
+matrix instead, which does not strobe. You get the brightness you asked for
+without the flicker that usually comes with it.
 
 ```
 lunectl flicker on
@@ -129,7 +129,7 @@ Disturb on a schedule.
 
 ### Levers
 
-Each one is an appop — a permission the framework simply stops granting.
+Each one is an appop: a permission the framework simply stops granting.
 Instant, free, enforced by the system, and it survives reboots by itself.
 
 | Lever | What the app can no longer do | Needs |
@@ -138,7 +138,7 @@ Instant, free, enforced by the system, and it survives reboots by itself.
 | `screen` | turn your screen on | Android 14+ |
 | `fullscreen` | take the whole screen over with a notification | Android 14+ |
 | `vibrate` | buzz | any Android |
-| `notify` | post notifications at all — blunt, opt in per app | any Android |
+| `notify` | post notifications at all (blunt, opt in per app) | any Android |
 
 ```
 quietctl add com.example.social                    # wake, screen, fullscreen
@@ -151,8 +151,8 @@ Availability is **probed on your device**, not guessed from the SDK number, and
 
 Levers are set to `ignore`, not `deny`. `ignore` makes the framework quietly
 pretend the call worked; `deny` throws a `SecurityException` and takes badly
-written apps down with it. Quieting an app should not crash it — a crashing app
-is noisier than the notification was.
+written apps down with it. Quieting an app should not crash it. A crashing app
+is noisier than the notification ever was.
 
 ### Quiet hours
 
@@ -162,8 +162,8 @@ quietctl allow com.example.messages
 ```
 
 Windows that cross midnight work properly. Do Not Disturb is set to
-**priority**, not total silence, so **alarms still go off** — a quiet-hours
-feature that eats someone's alarm has done more harm than the notifications it
+**priority**, not total silence, so **alarms still go off**. A quiet-hours
+feature that eats someone's alarm has done more harm than every notification it
 silenced.
 
 Anything on the allow list breaks through: a partner, a parent, your on-call
@@ -171,8 +171,8 @@ app.
 
 ### The re-engagement watcher (opt-in)
 
-Snoozes notifications matching a pattern list — "we miss you", "your streak is
-about to expire", "3 new updates" — for apps you added, and **only** for apps
+Snoozes notifications matching a pattern list ("we miss you", "your streak is
+about to expire", "3 new updates") for apps you added, and **only** for apps
 you added.
 
 ```
@@ -191,7 +191,7 @@ this module exists to avoid. Off by default; the UI says both.
 
 ### Cost when you are not using it
 
-The scheduler's wake cadence scales with what you have configured — an hour
+The scheduler's wake cadence scales with what you have configured: an hour
 when nothing is set up, five minutes with rules but no schedule, a minute
 during quiet hours. If you only ever wanted the display half, Quiet Field costs
 you nothing.
@@ -208,7 +208,7 @@ dimming feature specifically.
 3. Reboot.
 4. `su -c lunectl status`
 
-There is a WebUI — open the module in KernelSU, APatch or MMRL. On plain
+There is a WebUI. Open the module in KernelSU, APatch or MMRL. On plain
 Magisk 27+, the module's **Action** button shows the same report.
 
 ### Check it actually worked
@@ -228,7 +228,7 @@ Overlay
 
 If it says **NOT in effect**, the overlay installed but this ROM is refusing
 third-party framework overlays. Lune tells you that plainly instead of
-pretending. Everything still works — just within Android's stock limits.
+pretending. Everything still works, just within Android's stock limits.
 
 This check is functional, not cosmetic: Lune asks the framework to store 1700K
 and reads the value back. An overlay can be installed, enabled, and listed, and
@@ -240,7 +240,7 @@ still not be in effect.
 
 ```
 lunectl status                what this device can do, and what is active
-lunectl level <1-100|off>     light level, the safe way — the one to use
+lunectl level <1-100|off>     light level, the safe way (use this one)
 lunectl warm <kelvin|off>     colour temperature, 1700-4082K
 lunectl dim <0-99|off>        dim below the panel minimum, as a percentage
 lunectl flicker <on|off>      hold the backlight above its PWM knee
@@ -282,7 +282,7 @@ what it found.
 | Flicker-safe mode | Extra Dim | unavailable |
 | Raw panel control | a writable backlight node | unavailable |
 | Vendor DC dimming | a kernel node Lune recognises | reported, never auto-enabled |
-| Quiet: wake, vibrate, notify | any Android with root | — |
+| Quiet: wake, vibrate, notify | any Android with root | n/a |
 | Quiet: screen, fullscreen | Android 14+ appops | named as missing in `status` |
 | Quiet hours + allow list | `cmd notification` access | named as missing in `status` |
 | Re-engagement watcher | `cmd notification` access | unavailable |
@@ -336,11 +336,11 @@ validation**, so a bad curve cannot reach a release.
 
 The build also runs [`tools/test-core.sh`](tools/test-core.sh) first, which
 exercises the fixed-point arithmetic the runtime uses. Those tests are not
-decoration — they caught a factor-of-ten error in the dimming inversion that
+decoration. They caught a factor-of-ten error in the dimming inversion that
 made flicker-safe mode deliver 2% when asked for 45%.
 
-The overlay is self-signed. That is correct here — an RRO in a system partition
-is trusted because of where it lives, not who signed it. `build.sh` generates a
+The overlay is self-signed, which is correct here. An RRO in a system partition
+is trusted because of where it lives, not because of who signed it. `build.sh` generates a
 throwaway key if none exists, and the key is gitignored. For published
 releases, keep one key outside the repo and reuse it, so upgrades do not change
 the overlay's signature.
@@ -368,7 +368,7 @@ A copy-paste release announcement for XDA and r/Magisk is in
 ## SonoLune
 
 Lune Bridge is the root companion to **SonoLune**, a calm-first sleep and focus
-app. SonoLune works fine without root — it dims and warms by drawing a matte
+app. SonoLune works fine without root. It dims and warms by drawing a matte
 over the screen, the way every no-root app has to.
 
 With this module installed, it stops doing that. Warmth and dimming move into
@@ -376,7 +376,7 @@ the display pipeline instead: no overlay over your screen, clean screenshots,
 secure surfaces covered, and the full 1700K range rather than Android's 2596K
 floor. Turn it on in **Labs → Screen & rendering**.
 
-The module stands alone — you do not need the app to use it, and everything
+The module stands alone. You do not need the app to use it, and everything
 here works from `lunectl` and `quietctl` on their own.
 
 [SonoLune on Google Play](https://play.google.com/store/apps/details?id=com.soundsoftlab.sonolune)
@@ -389,8 +389,8 @@ Free, and staying that way.
 hurting at 3am. It goes back into the work, and into the odd second-hand phone
 to test on.
 
-The most useful thing you can send is still your PWM knee — it ships as a device
-profile so the next person with your phone gets a measured value instead of a
+The most useful thing you can send is still your PWM knee. It ships as a device
+profile, so the next person with your phone gets a measured value instead of a
 guess. See [docs/DEVICE-PROFILES.md](docs/DEVICE-PROFILES.md).
 
 Support links live in one place: the `LINKS` block at the top of the script in
