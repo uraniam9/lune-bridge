@@ -142,16 +142,38 @@ adb shell su -c "lunectl level 3"
 adb shell su -c "lunectl reset"
 ```
 
-**Flicker-safe mode** — the interesting one:
+**Flicker-safe mode** — the interesting one, and the one claim in this module
+that nothing but a person looking at a screen can confirm. Do it as a real A/B,
+in a dark room, with your eyes adjusted. Level 3 is where PWM is worst:
 
 ```bash
-adb shell su -c "lunectl flicker on"
-adb shell su -c "lunectl level 8"
+adb shell su -c "lunectl level 3"
+adb shell su -c "lunectl flicker off"    # A
 ```
 
-The screen should look about as dark as before, but the backlight is now being
-held higher with the rest taken from the colour matrix. If low brightness
-normally gives you eye strain, this is where you would notice it stop.
+Look slightly off to one side of the screen for a few seconds. Peripheral
+vision catches flicker far better than looking straight at it.
+
+```bash
+adb shell su -c "lunectl flicker on"     # B
+```
+
+Same glance, same spot. Then switch back and forth a few times, because the
+first comparison is the least reliable one.
+
+What you are looking for in B: the screen is about as dark as in A, but the
+strobing is gone, because the backlight is being held higher and the rest of
+the dimming is coming from the colour matrix. What you may also notice is
+slightly flatter contrast in dark scenes, which is the stated cost.
+
+Three outcomes, all worth reporting:
+
+- **B is visibly calmer than A.** The mechanism works on your panel.
+- **No difference either way.** Your panel may not use PWM at these levels, or
+  the knee is set too low to be doing anything. Check `lunectl status` for the
+  floor it is holding and try raising the knee.
+- **B is not as dark as A.** The knee is higher than it needs to be. Lower it,
+  per the next section.
 
 ## 7. Find your PWM knee
 
@@ -236,7 +258,46 @@ adb shell su -c "quietctl window off"
 adb shell su -c "quietctl reset"
 ```
 
-## 9. Test the app integration
+## 9. Check the WebUI controls
+
+These four were fixed after the first round of on-device testing and have not
+been confirmed on hardware since. They are in 2.0.0 as released, so this is
+verification rather than a pending change. Three minutes with the panel open
+settles it.
+
+Open the module's WebUI from KernelSU, APatch or MMRL. On plain Magisk 27+, the
+module's **Action** button shows the same panel.
+
+**Hold to reset.** Press and hold the reset control for the full countdown
+without lifting. It should complete and clear every display setting. The
+earlier version aborted the instant a finger moved, because the WebView claimed
+the gesture as a scroll and fired `pointercancel`. If it still aborts, say
+which manager's WebView you used, since that is the variable that differs.
+
+**PWM knee gating.** With **Flicker-safe** off, the knee control should be
+visibly inactive. Turning flicker on should enable it. A disabled control
+should say why rather than ignoring the tap.
+
+**DND toggle.** Toggle Do Not Disturb from the panel and confirm the system DND
+state actually changes in the status bar, not just in the UI. Then set an alarm
+a minute out and confirm it still fires: DND is set to `priority`, never `none`,
+so it should.
+
+**Custom time.** Set a quiet window with the custom picker, including an
+overnight one such as 2100 to 0800. It should be accepted and read back
+correctly. The earlier failure was silent, because the WebView returned
+"09:00 PM" where the parser expected "21:00".
+
+Then confirm the UI and the shell agree:
+
+```bash
+adb shell su -c "lunectl status"
+```
+
+The floor percentage the panel shows and the one `status` reports should match
+exactly. They disagreed once, because the UI rounded where the shell truncates.
+
+## 10. Test the app integration
 
 In SonoLune: **Labs → Screen & rendering**. A **Lune Bridge** switch
 appears only if the module is installed.
@@ -253,7 +314,7 @@ If Extra Dim exists, a **Flicker-safe dimming** switch appears underneath.
 Turn the main switch off again and confirm the app goes back to its overlay
 without a reboot.
 
-## 10. Undo everything
+## 11. Undo everything
 
 ```bash
 adb shell su -c "lunectl reset"
