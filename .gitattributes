@@ -1,0 +1,34 @@
+# Everything that runs on the device must check out with LF endings.
+#
+# Git on Windows defaults to core.autocrlf=true, which rewrites LF to CRLF on
+# checkout. A shell script with CRLF fails on Android before it runs a single
+# line: the kernel reads the shebang as "/system/bin/sh\r", finds no such
+# interpreter, and the module silently does nothing. Anyone cloning this on
+# Windows would build a broken zip and have no idea why.
+#
+# * text=auto lets git normalise text in the repo; the explicit eol=lf entries
+# below override the platform default on checkout for the files that care.
+
+* text=auto
+
+*.sh            text eol=lf
+*.prop          text eol=lf
+*.rule          text eol=lf
+*.txt           text eol=lf
+*.json          text eol=lf
+*.xml           text eol=lf
+*.html          text eol=lf
+*.py            text eol=lf
+*.md            text eol=lf
+
+# Module binaries and installer scripts have no extension.
+module/bin/*            text eol=lf
+module/system/bin/*     text eol=lf
+module/META-INF/com/google/android/update-binary   text eol=lf
+module/META-INF/com/google/android/updater-script  text eol=lf
+
+# Never touch these.
+*.apk           binary
+*.zip           binary
+*.png           binary
+*.keystore      binary
