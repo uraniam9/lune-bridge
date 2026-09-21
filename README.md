@@ -6,7 +6,7 @@ Android's display pipeline the range it already has the hardware for, and
 it.
 
 Both work the same way. They drive mechanisms Android already has instead of
-inventing new ones. **Neither needs Xposed or LSPosed.** Nothing here
+inventing new ones. **Neither needs Xposed, and that includes LSPosed.** Nothing here
 hooks a process or patches a framework method, which is why it survives ROM
 updates and behaves the same on a Pixel and on a heavily skinned OEM build.
 
