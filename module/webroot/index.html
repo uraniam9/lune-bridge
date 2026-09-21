@@ -131,6 +131,16 @@
   .app:first-child { border-top: none; }
   .app .name { flex: 1; word-break: break-all; }
   .app .levers { color: var(--muted); font-size: 11.5px; }
+  /* An app in both lists is a contradiction that resolves silently, so the row
+     says which way it resolves. Amber rather than red: nothing is broken, it
+     just will not do what putting it in both lists suggests. */
+  .app .clash {
+    color: var(--warm); font-size: 11.5px; margin-top: 4px; line-height: 1.45;
+    /* The package name above needs break-all to fit; a sentence does not, and
+       inheriting it chops words mid-letter. */
+    word-break: normal; overflow-wrap: anywhere;
+  }
+  .app .clash b { color: #f3d9b4; font-weight: 600; }
   .dimmed { opacity: .4; }
   #toast {
     position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%);
@@ -993,6 +1003,27 @@ const LEVER_CYCLE = [
 
 let quietApps = [], allowApps = [], installed = [];
 
+// Quieting and allowing are different mechanisms, and the order they are
+// enforced in makes the contradiction one-sided: appops are checked before Do
+// Not Disturb is ever consulted, so quieting always wins. Naming the lever
+// that wins is more use to someone than "these settings conflict".
+function clashNote(pkg, levers) {
+  if (allowApps.indexOf(pkg) < 0) return '';
+  const has = (l) => ('' + levers).split(',').indexOf(l) >= 0;
+  if (has('notify')) {
+    return '<div class="clash">Also in <b>allowed through</b>, but the '
+         + '<b>notify</b> lever stops it posting anything at all, so allowing '
+         + 'it changes nothing.</div>';
+  }
+  const blocked = ['wake', 'screen', 'fullscreen', 'vibrate'].filter(has);
+  return '<div class="clash">Also in <b>allowed through</b>. It can ring past '
+       + 'Do Not Disturb'
+       + (blocked.length
+            ? ', but <b>' + escapeHtml(blocked.join(' · ')) + '</b> still applies.'
+            : '.')
+       + '</div>';
+}
+
 function renderQuiet() {
   const mode = qstate.mode || 'off';
   $('quietNow').textContent = mode;
@@ -1037,16 +1068,24 @@ function renderQuiet() {
     ? quietApps.map((a) =>
         '<div class="app"><span class="name">' + escapeHtml(prettyName(a.pkg)) +
         '<div class="pkg">' + escapeHtml(a.pkg) + '</div>' +
-        '<div class="levers">' + escapeHtml(a.levers.split(',').join(' · ')) + '</div></span>' +
+        '<div class="levers">' + escapeHtml(a.levers.split(',').join(' · ')) + '</div>' +
+        clashNote(a.pkg, a.levers) + '</span>' +
         '<button class="tiny" data-cycle="' + a.pkg + '">levers</button>' +
         '<button class="tiny" data-unquiet="' + a.pkg + '">remove</button></div>'
       ).join('')
     : '<div class="note">No apps quieted yet. Search below to add one.</div>';
 
   $('allowList').innerHTML = allowApps.length
-    ? allowApps.map((p) =>
-        appRow(p, '<button class="tiny" data-disallow="' + p + '">remove</button>')
-      ).join('')
+    ? allowApps.map((p) => {
+        const q = quietApps.filter((a) => a.pkg === p)[0];
+        const note = q
+          ? '<div class="clash">Also being <b>quieted</b>, and that wins: '
+            + '<b>' + escapeHtml(q.levers.split(',').join(' · ')) + '</b>.</div>'
+          : '';
+        return '<div class="app"><span class="name">' + escapeHtml(prettyName(p)) +
+          '<div class="pkg">' + escapeHtml(p) + '</div>' + note + '</span>' +
+          '<button class="tiny" data-disallow="' + p + '">remove</button></div>';
+      }).join('')
     : '<div class="note">Nobody breaks through yet.</div>';
 
   const b = $('qbanner');
