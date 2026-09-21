@@ -154,6 +154,24 @@ adb shell su -c "lunectl flicker off"    # A
 Look slightly off to one side of the screen for a few seconds. Peripheral
 vision catches flicker far better than looking straight at it.
 
+**The test that does not depend on how your eyes feel.** Whether a screen gives
+you a headache is subjective and slow. Whether it is strobing is neither. Wave
+a finger or a pen quickly back and forth a few inches in front of the screen
+and watch the trail it leaves:
+
+- **Several separate, frozen copies of your finger**, like a stop-motion trail,
+  means the backlight is switching on and off. That is PWM, and the gaps you
+  are seeing are the screen being dark.
+- **One smooth continuous blur** means the light is steady.
+
+Do it at the same brightness with flicker-safe off, then on. If the trail goes
+from stepped to smooth, the mode works on your panel, and you have an answer
+in ten seconds that does not require sitting there waiting for a headache.
+
+A phone camera pointed at the screen is the other objective check: record a
+slow-motion video and look for dark bands rolling through the frame. They
+appear under PWM and vanish without it.
+
 ```bash
 adb shell su -c "lunectl flicker on"     # B
 ```
