@@ -258,8 +258,18 @@ case "$1" in
     on)         quiet_enter; echo "quiet: on" ;;
     off)        quiet_leave; echo "quiet: off" ;;
     dnd)        case "$2" in
-                    on|off) qconf_set dnd "$2"; echo "quiet: do not disturb $2" ;;
-                    *) die "dnd: on or off" ;;
+                    on)  qconf_set dnd on
+                         echo "quiet: do not disturb on" ;;
+                    off) qconf_set dnd off
+                         # Releasing the preference has to release the hold as
+                         # well. Writing the config alone left DND on with the
+                         # only control for it now reading "off".
+                         if [ "$(kv_get "$QUIET_STATE" dnd_applied no)" = "yes" ]; then
+                             quiet_dnd_off
+                             kv_set "$QUIET_STATE" dnd_applied no
+                         fi
+                         echo "quiet: do not disturb off" ;;
+                    *)   die "dnd: on or off" ;;
                 esac ;;
     allow)      [ -n "$2" ] || die "allow: needs a package name"
                 quiet_allow_add "$2"; echo "quiet: $2 may break through" ;;

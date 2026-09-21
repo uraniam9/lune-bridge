@@ -370,7 +370,13 @@ quiet_enter() {
     [ "$(quiet_mode)" = "on" ] && return 0
     quiet_apply_all
     quiet_allow_sync
-    [ "$(qconf_get dnd on)" = "on" ] && quiet_dnd_on
+    # Record that we were the ones who turned it on. Deciding at lift time by
+    # re-reading the preference is what stranded DND on: flip the preference
+    # while quiet mode is active and nothing will ever lift it again.
+    if [ "$(qconf_get dnd on)" = "on" ]; then
+        quiet_dnd_on
+        kv_set "$QUIET_STATE" dnd_applied yes
+    fi
     kv_set "$QUIET_STATE" mode on
     kv_set "$QUIET_STATE" since "$(date '+%Y-%m-%d %H:%M:%S')"
     quiet_stat_bump entered
@@ -380,7 +386,13 @@ quiet_enter() {
 quiet_leave() {
     [ "$(quiet_mode)" = "off" ] && return 0
     quiet_lift_all
-    [ "$(qconf_get dnd on)" = "on" ] && quiet_dnd_off
+    # Lift on the record of what we did, never on the current preference, and
+    # never unconditionally: DND the user switched on themselves is not ours
+    # to switch off.
+    if [ "$(kv_get "$QUIET_STATE" dnd_applied no)" = "yes" ]; then
+        quiet_dnd_off
+        kv_set "$QUIET_STATE" dnd_applied no
+    fi
     kv_set "$QUIET_STATE" mode off
     log "quiet: left"
 }

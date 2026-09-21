@@ -63,7 +63,13 @@
   }
   button:active { background: #302a28; }
   button.on { background: var(--warm-dim); border-color: var(--warm); color: #fff5e8; }
-  button.tiny { padding: 5px 9px; font-size: 12px; }
+  /* These sit in rows and lists and were sized like desktop chips. Set, the
+     DND toggle and the per-app buttons are all thumb targets on a phone. */
+  button.tiny { padding: 8px 12px; min-height: 36px; font-size: 12.5px; }
+  /* A gated knee must still answer a tap, so the controls lose pointer events
+     rather than being disabled. A disabled control swallows the event and the
+     explanation never fires, which reads as broken rather than gated. */
+  #kneeGroup.dimmed input, #kneeGroup.dimmed button { pointer-events: none; }
   /* The hold gesture must not be interpreted as a scroll. */
   button.hold { touch-action: none; user-select: none; }
   .btns { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -219,7 +225,7 @@
     </div>
     <!-- The knee only means anything while flicker-safe mode is on, so it is
          dimmed and inert until then, and says why if you reach for it. -->
-    <div id="kneeGroup">
+    <div id="kneeGroup" class="dimmed">
       <div class="row" style="margin-top:12px">
         <span class="k">PWM knee</span><span class="val" id="kneeVal">—</span>
       </div>
@@ -719,8 +725,16 @@ function syncDisplay() {
   // The knee is a child of flicker-safe mode: with the mode off it changes
   // nothing, so leaving it live would be a control that silently does nothing.
   $('kneeGroup').classList.toggle('dimmed', !on);
-  $('knee').disabled = !on;
-  document.querySelectorAll('[data-knee]').forEach((b) => { b.disabled = !on; });
+  // Cleared because the markup ships it disabled for the moment before this
+  // runs. From here the dimmed class does the gating, via pointer-events.
+  $('knee').disabled = false;
+  $('knee').setAttribute('aria-disabled', String(!on));
+  $('knee').tabIndex = on ? 0 : -1;
+  document.querySelectorAll('[data-knee]').forEach((b) => {
+    b.disabled = false;
+    b.setAttribute('aria-disabled', String(!on));
+    b.tabIndex = on ? 0 : -1;
+  });
 }
 
 async function load() {
@@ -750,6 +764,7 @@ $('warm').addEventListener('input', (e) => {
   applyWarm(e.target.value);
 });
 $('knee').addEventListener('input', (e) => {
+  if (conf.flicker !== 'on') return;   // gated above; this is the backstop
   $('kneeVal').textContent = e.target.value + '%';
   showKneeFloor(parseInt(e.target.value, 10));
   applyKnee(e.target.value);
@@ -766,7 +781,13 @@ document.querySelectorAll('[data-level]').forEach((btn) => {
     await load();
   });
 });
-$('warmOff').addEventListener('click', async () => { await lune('warm off'); await load(); });
+$('warmOff').addEventListener('click', async () => {
+  // Tapping Off when it is already off used to do a round trip and change
+  // nothing on screen, which looks like the button is dead.
+  if (!conf.warm || conf.warm === 'off') { toast('Warmth is already off.'); return; }
+  await lune('warm off');
+  await load();
+});
 document.querySelectorAll('[data-warm]').forEach((btn) => {
   btn.addEventListener('click', async () => { await lune('warm ' + btn.dataset.warm); await load(); });
 });
@@ -1073,8 +1094,11 @@ $('quietNow').addEventListener('click', async () => {
 });
 $('dndBtn').addEventListener('click', async () => {
   const next = (qconf.dnd || 'on') === 'on' ? 'off' : 'on';
+  // `quiet dnd off` now releases the hold itself. The old workaround here
+  // called `quiet off`, which left quiet mode entirely just to silence DND,
+  // and did not even work: it wrote the preference first, so the lift was
+  // skipped by the very setting it had just changed.
   await quiet('dnd ' + next);
-  if (next === 'off') await quiet('off');   // lift DND immediately, not next tick
   await loadQuiet();
   toast(next === 'on'
     ? 'Do Not Disturb will come on during quiet hours.'
