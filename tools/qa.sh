@@ -303,6 +303,17 @@ STALE=$(grep -rn "v1\.0\.0\|Lune Display Bridge" README.md docs/*.md module/modu
     | grep -v CHANGELOG | grep -v "LuneDisplayBridge" || true)
 if [ -z "$STALE" ]; then ok "no stale v1 naming in user-facing docs"; else note "stale v1 references:"; echo "$STALE" | head -5; fi
 
+# A version left behind in a copy-paste command sends someone to a filename
+# that no longer exists. This caught 2.0.0 still being pushed in TESTING.md
+# after the bump to 2.0.1.
+OLDVER=$(grep -rn "LuneBridge-v[0-9.]*[.]zip" README.md docs/ 2>/dev/null \
+    | grep -v "LuneBridge-v$VERSION[.]zip" || true)
+if [ -z "$OLDVER" ]; then
+    ok "docs reference the current ZIP filename"
+else
+    bad "docs reference an old ZIP filename:"; echo "$OLDVER" | head -5
+fi
+
 git -C "$ROOT" check-ignore -q tools/lune.keystore 2>/dev/null
 check "signing key is gitignored" $?
 
