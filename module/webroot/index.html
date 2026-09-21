@@ -90,11 +90,22 @@
     color: var(--text); color-scheme: dark;
   }
   .hero {
+    position: relative;
     border: 1px solid var(--warm-dim); border-radius: var(--radius);
     padding: 14px 16px; margin-bottom: 14px;
     background: linear-gradient(160deg, #221a12, #1a1613);
   }
-  .hero h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: #f3d9b4; }
+  /* This card is an advert for the companion app. Read once it is just noise,
+     so it closes for good. The heading reserves room so a long title never
+     runs under the button. */
+  .hero h3 { margin: 0 0 6px; padding-right: 30px; font-size: 15px; font-weight: 600; color: #f3d9b4; }
+  .heroX {
+    position: absolute; top: 7px; right: 7px;
+    width: 32px; height: 32px; padding: 0; line-height: 1;
+    border: 0; border-radius: 8px; background: transparent;
+    color: var(--muted); font-size: 15px;
+  }
+  .heroX:active { background: var(--warm-dim); color: #f3d9b4; }
   .hero p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
   .applist { max-height: 300px; overflow-y: auto; margin-top: 10px; }
   .app .pkg { color: var(--muted); font-size: 11px; word-break: break-all; }
@@ -122,7 +133,8 @@
 <h1>Lune Bridge</h1>
 <div class="sub" id="device">reading device…</div>
 
-<div class="hero">
+<div class="hero" id="hero">
+  <button class="heroX" id="heroX" aria-label="Hide this card" title="Hide this card">&#10005;</button>
   <h3>Made for nights, not for screens</h3>
   <p>
     Lune Bridge is the root half of <strong>SonoLune</strong> — a calm-first
@@ -836,6 +848,18 @@ $('refresh').addEventListener('click', async () => { await lune('probe'); await 
   $('firstRunDone').addEventListener('click', () => {
     $('firstRun').classList.add('hidden');
     try { localStorage.setItem('lune_seen_guide', '1'); } catch (_) {}
+  });
+})();
+
+// Same idea for the hero, and the same localStorage caveat: if it cannot be
+// remembered the card simply comes back, which is not worth an error.
+(function heroDismiss() {
+  let hidden = false;
+  try { hidden = localStorage.getItem('lune_hid_hero') === '1'; } catch (_) {}
+  if (hidden) $('hero').classList.add('hidden');
+  $('heroX').addEventListener('click', () => {
+    $('hero').classList.add('hidden');
+    try { localStorage.setItem('lune_hid_hero', '1'); } catch (_) {}
   });
 })();
 
