@@ -2,7 +2,7 @@
 
 A Magisk / KernelSU / APatch module in two halves: **Display**, which gives
 Android's display pipeline the range it already has the hardware for, and
-**Quiet Field**, which stops apps taking your attention when you did not offer
+**Quiet Field**, which stops apps taking your attention when you didn't offer
 it.
 
 Both work the same way. They drive mechanisms Android already has instead of
@@ -35,9 +35,9 @@ This module moves those limits, correctly.
 ## Why this is not another screen-dimmer
 
 Every no-root dimming app works the same way: draw a translucent black window
-over everything. That approach has permanent costs. It cannot cover the status
-bar reliably, it blacks out in screenshots and screen recordings, it is
-excluded from secure surfaces, it crushes contrast because it is adding black
+over everything. That approach has permanent costs. It can't cover the status
+bar reliably, it blacks out in screenshots and screen recordings, it's
+excluded from secure surfaces, it crushes contrast because it's adding black
 rather than emitting less light, and it needs an accessibility service or an
 always-on overlay permission that users are right to be suspicious of.
 
@@ -53,7 +53,7 @@ compositor before anything reaches the panel:
 | Permissions needed | accessibility or overlay | none, it is a root module |
 | Cost | an extra composited layer | none, it is a colour matrix |
 
-Lune does not add a mechanism. It unlocks the ones that are already there.
+Lune doesn't add a mechanism. It unlocks the ones that are already there.
 
 ---
 
@@ -87,11 +87,11 @@ range, blue within 0.05. Run `python3 tools/coefficients.py` to see the report.
 ### 2. Dimming below the panel minimum, without an overlay
 
 Android 12 added "Extra Dim", which multiplies the framebuffer down through the
-hardware colour matrix. It is the right mechanism and it is already on your
-phone. It is also clamped to 25–90% strength.
+hardware colour matrix. It's the right mechanism and it's already on your
+phone. It's also clamped to 25–90% strength.
 
 At 90% the stock ramp leaves 14% of the signal. Lune raises the ceiling to 99%,
-which leaves 5.4%, roughly another 2.6× darker. That is the difference between
+which leaves 5.4%, roughly another 2.6× darker. That's the difference between
 "dim" and "readable at 3am without waking yourself up".
 
 Lune also drops `config_screenBrightnessSettingMinimumFloat` to `0.0`, which is
@@ -103,12 +103,12 @@ brightness slider reaches the panel's real minimum first.
 Most OLED panels dim by PWM: below a certain backlight level the driver strobes
 the panel, and for a significant minority of people that strobe causes eye
 strain, headaches and nausea. Vendor "DC dimming" toggles fix it, but they are
-per-device kernel features with no standard interface, and most devices do not
+per-device kernel features with no standard interface, and most devices don't
 have one at all.
 
-Flicker-safe mode does not need one. It holds the backlight **above** the knee
+Flicker-safe mode doesn't need one. It holds the backlight **above** the knee
 where strobing gets bad, and takes the remaining dimming out of the colour
-matrix instead, which does not strobe. You get the brightness you asked for
+matrix instead, which doesn't strobe. You get the brightness you asked for
 without the flicker that usually comes with it.
 
 ```
@@ -147,7 +147,7 @@ quietctl list
 ```
 
 Availability is **probed on your device**, not guessed from the SDK number, and
-`quietctl status` names any lever your Android version does not have.
+`quietctl status` names any lever your Android version doesn't have.
 
 Levers are set to `ignore`, not `deny`. `ignore` makes the framework quietly
 pretend the call worked; `deny` throws a `SecurityException` and takes badly
@@ -181,7 +181,7 @@ quietctl pattern add "your (order|delivery) is"
 ```
 
 It ships 27 starter patterns, deliberately conservative: a false positive means
-a notification you wanted disappeared, which is much worse than one you did not
+a notification you wanted disappeared, which is much worse than one you didn't
 want surviving. A test asserts none of them match an ordinary message.
 
 **Two honest costs.** It polls `cmd notification list`, so a matching
@@ -208,7 +208,7 @@ dimming feature specifically.
 3. Reboot.
 4. `su -c lunectl status`
 
-There is a WebUI. Open the module in KernelSU, APatch or MMRL. On plain
+There's a WebUI. Open the module in KernelSU, APatch or MMRL. On plain
 Magisk 27+, the module's **Action** button shows the same report.
 
 ### Check it actually worked
@@ -271,8 +271,8 @@ quietctl reset                release everything
 
 ## What it does on your device
 
-Lune probes rather than assumes, because display sysfs layouts are not
-standardised and there is no public registry of them. `lunectl status` reports
+Lune probes rather than assumes, because display sysfs layouts aren't
+standardised and there's no public registry of them. `lunectl status` reports
 what it found.
 
 | Feature | Needs | If unavailable |
@@ -287,7 +287,7 @@ what it found.
 | Quiet hours + allow list | `cmd notification` access | named as missing in `status` |
 | Re-engagement watcher | `cmd notification` access | unavailable |
 
-Lune never writes to a vendor display node it does not understand. It reports
+Lune never writes to a vendor display node it doesn't understand. It reports
 what exists and leaves enabling it to you or to a device profile. Poking
 unknown display registers is a good way to hand someone a black screen at boot.
 
@@ -300,7 +300,7 @@ not require seeing the screen.
 
 - **Failed-boot guard.** The daemon sets a flag before applying settings and
   clears it 20 seconds after the framework is up. If a boot starts with the
-  flag still set, the previous boot did not finish, so Lune clears its settings
+  flag still set, the previous boot didn't finish, so Lune clears its settings
   and stands down.
 - **Uninstalling actually undoes it.** `uninstall.sh` puts the display back to
   stock rather than leaving a dim screen and no tool to fix it.
@@ -332,17 +332,17 @@ Needs an Android SDK (build-tools + one platform), a JDK, and Python 3.
 
 Produces `dist/LuneBridge-v2.0.0.zip`. The build computes the colour
 ramp from source and **refuses to continue if the ramp fails its own
-validation**, so a bad curve cannot reach a release.
+validation**, so a bad curve can't reach a release.
 
 The build also runs [`tools/test-core.sh`](tools/test-core.sh) first, which
-exercises the fixed-point arithmetic the runtime uses. Those tests are not
+exercises the fixed-point arithmetic the runtime uses. Those tests aren't
 decoration. They caught a factor-of-ten error in the dimming inversion that
 made flicker-safe mode deliver 2% when asked for 45%.
 
 The overlay is self-signed, which is correct here. An RRO in a system partition
 is trusted because of where it lives, not because of who signed it. `build.sh` generates a
 throwaway key if none exists, and the key is gitignored. For published
-releases, keep one key outside the repo and reuse it, so upgrades do not change
+releases, keep one key outside the repo and reuse it, so upgrades don't change
 the overlay's signature.
 
 ---
@@ -357,7 +357,7 @@ contract, exit codes, and a Kotlin example.
 ## How it works
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design, including
-why the daemon does almost nothing and why that is deliberate.
+why the daemon does almost nothing and why that's deliberate.
 
 First time on hardware? [docs/TESTING.md](docs/TESTING.md) walks through it,
 recovery path first.
@@ -376,8 +376,12 @@ the display pipeline instead: no overlay over your screen, clean screenshots,
 secure surfaces covered, and the full 1700K range rather than Android's 2596K
 floor. Turn it on in **Labs → Screen & rendering**.
 
-The module stands alone. You do not need the app to use it, and everything
+The module stands alone. You don't need the app to use it, and everything
 here works from `lunectl` and `quietctl` on their own.
+
+**[sonolune.app](https://sonolune.app)** turns the phone into a calm
+environment rather than another thing demanding something from you. It works
+offline. No ads, no tracking, no streaks, no data collection.
 
 [SonoLune on Google Play](https://play.google.com/store/apps/details?id=com.soundsoftlab.sonolune)
 

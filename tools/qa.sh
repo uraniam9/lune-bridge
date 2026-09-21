@@ -89,8 +89,13 @@ check "WebUI promotes SonoLune" $?
 
 # Every hardcoded module path must agree with the declared id, or the binaries
 # look for themselves in a directory that does not exist.
+# The one legitimate exception is the lune_* glob in the upgrade notes, which
+# exists precisely to catch a second module directory left behind by the id
+# change at 2.0.0. Matching only the current id there would defeat the point.
 BADPATH=$(grep -rn "/data/adb/modules/" module/ docs/ 2>/dev/null \
-    | grep -v "/data/adb/modules/$MODID" | grep -v Binary || true)
+    | grep -v "/data/adb/modules/$MODID" \
+    | grep -v '/data/adb/modules/lune_[*]' \
+    | grep -v Binary || true)
 if [ -z "$BADPATH" ]; then
     ok "every module path matches the declared id"
 else

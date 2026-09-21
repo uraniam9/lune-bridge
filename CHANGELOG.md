@@ -71,7 +71,7 @@ module id changed with it, from `lune_display_bridge` to `lune_bridge`.
 Magisk and KernelSU key modules by id, so the old one stays installed
 alongside, and its copies of `lunectl` and `quietctl` in `/system/bin` may be
 the ones you get on the command line. Check with
-`ls -d /data/adb/modules/lune_*`, and if `lune_display_bridge` is listed,
+`su -c "ls -d /data/adb/modules/lune_*"`, and if `lune_display_bridge` is listed,
 remove it.
 
 **No Xposed, anywhere.** The original concept for Quiet Field assumed LSPosed

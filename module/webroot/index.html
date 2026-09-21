@@ -498,6 +498,7 @@ function exec(cmd) {
 // ---------------------------------------------------------------------------
 const LINKS = {
   sonolune: 'https://play.google.com/store/apps/details?id=com.soundsoftlab.sonolune',
+  site:     'https://sonolune.app',
   // One support link, not two. A second button pointing at the same
   // intention makes people choose instead of act, and Buy Me a Coffee already
   // carries recurring support behind "Make this monthly".
@@ -646,6 +647,7 @@ function renderOwnership() {
 function renderAbout() {
   const buttons = [
     ['Get SonoLune', LINKS.sonolune],
+    ['sonolune.app', LINKS.site],
     ['Source', LINKS.source],
     ['Buy me a coffee', LINKS.coffee],
   ].filter(([, url]) => url);
