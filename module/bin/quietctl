@@ -7,7 +7,7 @@
 
 . "${LUNE_MODDIR:-/data/adb/modules/lune_bridge}/lib/quiet.sh"
 
-VERSION=2.0.0
+VERSION=2.0.1
 
 DEFAULT_LEVERS="wake,screen,fullscreen"
 
@@ -113,6 +113,7 @@ cmd_window() {
     quiet_window_valid "$1" \
         || die "window must look like 2100-0800 (24h, HHMM-HHMM, start and end differ)"
     qconf_set window "$1"
+    quiet_override_clear
     echo "quiet: quiet hours ${1%-*} to ${1#*-}"
     quiet_tick
 }
@@ -255,21 +256,14 @@ case "$1" in
     list)       cmd_list ;;
     window)     [ -n "$2" ] || die "window: needs HHMM-HHMM or 'off'"
                 cmd_window "$2" ;;
-    on)         quiet_enter; echo "quiet: on" ;;
-    off)        quiet_leave; echo "quiet: off" ;;
+    on)         quiet_enter; quiet_override_set on
+                echo "quiet: on" ;;
+    off)        quiet_leave; quiet_override_set off
+                echo "quiet: off" ;;
     dnd)        case "$2" in
-                    on)  qconf_set dnd on
-                         echo "quiet: do not disturb on" ;;
-                    off) qconf_set dnd off
-                         # Releasing the preference has to release the hold as
-                         # well. Writing the config alone left DND on with the
-                         # only control for it now reading "off".
-                         if [ "$(kv_get "$QUIET_STATE" dnd_applied no)" = "yes" ]; then
-                             quiet_dnd_off
-                             kv_set "$QUIET_STATE" dnd_applied no
-                         fi
-                         echo "quiet: do not disturb off" ;;
-                    *)   die "dnd: on or off" ;;
+                    on|off) quiet_dnd_prefer "$2"
+                            echo "quiet: do not disturb $2" ;;
+                    *)      die "dnd: on or off" ;;
                 esac ;;
     allow)      [ -n "$2" ] || die "allow: needs a package name"
                 quiet_allow_add "$2"; echo "quiet: $2 may break through" ;;

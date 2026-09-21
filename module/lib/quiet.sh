@@ -260,6 +260,25 @@ quiet_now_minutes() {
 quiet_dnd_on()  { cmd notification set_dnd priority >/dev/null 2>&1; }
 quiet_dnd_off() { cmd notification set_dnd off >/dev/null 2>&1; }
 
+# Changing the preference while quiet mode is already running has to take
+# effect now, in both directions. Writing the config alone means the change
+# waits for the next entry, and for an overnight window that is the following
+# night: switch it on at 22:30 inside quiet hours and nothing happens, switch
+# it off and DND stays on with the only control for it reading "off".
+quiet_dnd_prefer() {
+    qconf_set dnd "$1"
+    _applied=$(kv_get "$QUIET_STATE" dnd_applied no)
+    if [ "$1" = "on" ]; then
+        if [ "$(quiet_mode)" = "on" ] && [ "$_applied" != "yes" ]; then
+            quiet_dnd_on
+            kv_set "$QUIET_STATE" dnd_applied yes
+        fi
+    elif [ "$_applied" = "yes" ]; then
+        quiet_dnd_off
+        kv_set "$QUIET_STATE" dnd_applied no
+    fi
+}
+
 quiet_allow_list() { cat "$QUIET_ALLOW" 2>/dev/null; }
 
 quiet_allow_add() {
@@ -421,6 +440,25 @@ quiet_interval() {
 
 # Called by luned on the cadence above. Cheap by design: when no window is set
 # and nothing is scheduled, this does nothing at all.
+# A manual on or off inside quiet hours used to survive about twenty seconds,
+# because the next tick simply re-applied whatever the window said. That makes
+# the manual control look broken rather than temporary. An override is
+# therefore recorded together with the schedule's answer at the time it was
+# made, and it holds until that answer changes, which is the next window edge.
+quiet_override_set() {
+    _w=$(qconf_get window)
+    # With no schedule there is nothing to override: manual is already the mode.
+    [ -n "$_w" ] || return 0
+    if quiet_in_window "$_w" "$(quiet_now_minutes)"; then _s=on; else _s=off; fi
+    kv_set "$QUIET_STATE" override "$1"
+    kv_set "$QUIET_STATE" override_sched "$_s"
+}
+
+quiet_override_clear() {
+    kv_set "$QUIET_STATE" override ""
+    kv_set "$QUIET_STATE" override_sched ""
+}
+
 quiet_tick() {
     _window=$(qconf_get window)
     if [ -z "$_window" ]; then
@@ -428,7 +466,21 @@ quiet_tick() {
         [ "$(quiet_mode)" = "on" ] && quiet_watch_once
         return 0
     fi
-    if quiet_in_window "$_window" "$(quiet_now_minutes)"; then
+
+    if quiet_in_window "$_window" "$(quiet_now_minutes)"; then _want=on; else _want=off; fi
+
+    _ov=$(kv_get "$QUIET_STATE" override "")
+    if [ -n "$_ov" ]; then
+        if [ "$(kv_get "$QUIET_STATE" override_sched "")" = "$_want" ]; then
+            # The schedule still says what it said when the user overrode it.
+            if [ "$_ov" = "on" ]; then quiet_enter; quiet_watch_once; else quiet_leave; fi
+            return 0
+        fi
+        # A window edge has been crossed, so the override has had its say.
+        quiet_override_clear
+    fi
+
+    if [ "$_want" = "on" ]; then
         quiet_enter
         quiet_watch_once
     else

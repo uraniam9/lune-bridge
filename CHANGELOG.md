@@ -1,10 +1,78 @@
 # Changelog
 
+## 2.0.1
+
+Fixes found by using it on a phone rather than reading it.
+
+**Do Not Disturb ignored the preference while quiet mode was running**, in
+both directions. Switching it on mid-quiet did nothing until the next entry,
+which for an overnight window is the following night; switching it off left DND
+on with the only control for it now reading "off" and `quietctl reset` the only
+way out. Both had the same shape: a preference read at one moment to decide
+something that happens at another. Quiet mode now records that it was the one
+that turned DND on and acts on that record, so the preference takes effect when
+you change it. DND you switched on yourself is still left alone.
+
+**The manual quiet toggle lost to the scheduler.** Inside quiet hours the next
+tick re-applied whatever the window said, so switching quiet mode off by hand
+lasted about twenty seconds. A manual tap is now an override that holds until
+the window's own answer changes, which is the next window edge.
+
+**Setting a schedule looked like it did something else.** A window containing
+the current time starts quiet mode immediately, which is the point of a
+schedule, but nothing said so. It does now, and the custom pickers no longer
+look like they have applied when they have not: Set marks itself while it is
+holding something unsaved. Presets still apply on tap, which is the difference
+that was invisible before.
+
+**Do Not Disturb could not be switched off.** Turning the DND preference off
+while quiet mode was active left DND on, with `quietctl reset` the only way
+out. Two faults compounded: `quietctl dnd off` only wrote the config and never
+released a hold it was already holding, and the lift on leaving quiet mode was
+gated on re-reading that same preference, so once it said off the lift was
+skipped for good. Quiet mode now records that it was the one that turned DND
+on and lifts on that record. DND you switched on yourself is still left alone.
+
+**A gated PWM knee said nothing when tapped.** It was `disabled`, and a
+disabled control swallows the event, so the explanation never fired and the
+knee read as broken rather than off-limits.
+
+**Buttons in rows and lists were sized for a mouse.** Set, the DND toggle and
+the per-app buttons now clear 36px.
+
+**An app quieted and allowed through at once resolved in silence.** Both rows
+now say which way it resolves and which levers do the winning, including the
+case where the `notify` lever makes the allow do nothing at all.
+
+**Quiet hours threw away the times typed into them** when the schedule was
+switched off, so turning it back on meant setting both pickers again.
+
+**Warmth "Off" now says so when warmth is already off**, instead of making a
+round trip and changing nothing visible.
+
+Added:
+
+- Press and hold anywhere on the panel for two seconds to reset. The reset
+  button is the way back from a screen too dark to read, which is exactly when
+  it cannot be found.
+- **Report a bug**, **Request a feature** and **Share my PWM knee** in About,
+  opening the issue forms directly.
+- The SonoLune card can be dismissed for good, and points at the half of the
+  app that matches the tab you are on. A small "by SonoLune" stays beside the
+  title once the card is gone.
+
 ## 2.0.0
 
 Adds the Quiet Field suite. The module is now called **Lune Bridge** rather
 than Lune Display Bridge, since it is no longer only about the display. The
-module id is unchanged, so this is an in-place upgrade.
+module id changed with it, from `lune_display_bridge` to `lune_bridge`.
+
+**If you ran a build from before the rename, upgrading does not replace it.**
+Magisk and KernelSU key modules by id, so the old one stays installed
+alongside, and its copies of `lunectl` and `quietctl` in `/system/bin` may be
+the ones you get on the command line. Check with
+`ls -d /data/adb/modules/lune_*`, and if `lune_display_bridge` is listed,
+remove it.
 
 **No Xposed, anywhere.** The original concept for Quiet Field assumed LSPosed
 hooks would be needed. They are not. Everything below is appops and

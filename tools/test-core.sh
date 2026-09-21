@@ -243,6 +243,73 @@ ok "slow with rules only"    "$(quiet_interval)" 300
 qconf_set window 2100-0800
 ok "minute during schedule"  "$(quiet_interval)" 60
 
+echo "quiet: dnd preference while running"
+# Changing the preference mid-quiet has to act in both directions. Stub the two
+# calls that reach the framework so the bookkeeping is what gets tested.
+rm -f "$QUIET_APPS" "$QUIET_CONF" "$QUIET_STATE"
+DND_CALLS=""
+quiet_dnd_on()  { DND_CALLS="$DND_CALLS on"; }
+quiet_dnd_off() { DND_CALLS="$DND_CALLS off"; }
+
+# Quiet mode off: the preference is recorded and nothing is touched.
+kv_set "$QUIET_STATE" mode off
+quiet_dnd_prefer on
+ok "pref stored"               "$(qconf_get dnd off)" on
+ok "nothing applied when idle" "$DND_CALLS" ""
+
+# Quiet mode already running, preference switched on: apply now.
+kv_set "$QUIET_STATE" mode on
+quiet_dnd_prefer off          # clear first so the next call has work to do
+DND_CALLS=""
+quiet_dnd_prefer on
+ok "applied while running"     "$DND_CALLS" " on"
+ok "marked as ours"            "$(kv_get "$QUIET_STATE" dnd_applied no)" yes
+
+# Switched off again: release now.
+DND_CALLS=""
+quiet_dnd_prefer off
+ok "released while running"    "$DND_CALLS" " off"
+ok "no longer ours"            "$(kv_get "$QUIET_STATE" dnd_applied no)" no
+
+# Switching on twice must not double-apply.
+DND_CALLS=""
+quiet_dnd_prefer on
+quiet_dnd_prefer on
+ok "applied once only"         "$DND_CALLS" " on"
+
+echo "quiet: manual override"
+# Tapping the manual toggle inside quiet hours used to last about twenty
+# seconds, because the next tick re-applied whatever the window said. The
+# override has to outlive the tick, and has to stop mattering at the next
+# window edge.
+rm -f "$QUIET_APPS" "$QUIET_CONF" "$QUIET_STATE"
+ok "no override without a schedule" "$(quiet_override_set off; kv_get "$QUIET_STATE" override none)" none
+
+qconf_set window 2100-0800
+# Pretend it is 22:00, inside the window, and the user has switched quiet off.
+quiet_now_minutes() { echo 1320; }
+quiet_override_set off
+ok "override recorded"          "$(kv_get "$QUIET_STATE" override "")" off
+ok "schedule answer recorded"   "$(kv_get "$QUIET_STATE" override_sched "")" on
+
+# Still 22:00: the tick must leave the override alone.
+kv_set "$QUIET_STATE" mode off
+quiet_tick
+ok "override survives the tick" "$(quiet_mode)" off
+ok "override still set"         "$(kv_get "$QUIET_STATE" override "")" off
+
+# 12:00, outside the window: the edge has been crossed, so it expires.
+quiet_now_minutes() { echo 720; }
+quiet_tick
+ok "override cleared at the edge" "$(kv_get "$QUIET_STATE" override "")" ""
+
+# And a new schedule outranks an older override.
+quiet_now_minutes() { echo 1320; }
+quiet_override_set on
+qconf_set window 2100-0800
+quiet_override_clear
+ok "new schedule clears it"     "$(kv_get "$QUIET_STATE" override "")" ""
+
 echo "quiet: shipped patterns"
 PAT="$ROOT/module/patterns/reengagement.txt"
 ok "pattern file exists" "$([ -f "$PAT" ] && echo yes)" yes

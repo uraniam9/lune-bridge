@@ -65,7 +65,10 @@
   button.on { background: var(--warm-dim); border-color: var(--warm); color: #fff5e8; }
   /* These sit in rows and lists and were sized like desktop chips. Set, the
      DND toggle and the per-app buttons are all thumb targets on a phone. */
-  button.tiny { padding: 8px 12px; min-height: 36px; font-size: 12.5px; }
+  button.tiny { padding: 10px 16px; min-height: 42px; min-width: 58px; font-size: 13px; }
+  /* Picking a time changes nothing until Set is tapped, so Set says when it is
+     holding something unsaved. Without this the pickers look like they applied. */
+  button.tiny.pending { border-color: var(--warm); color: #fff5e8; background: var(--warm-dim); }
   /* A gated knee must still answer a tap, so the controls lose pointer events
      rather than being disabled. A disabled control swallows the event and the
      explanation never fires, which reads as broken rather than gated. */
@@ -122,6 +125,9 @@
   }
   .heroX:active { background: var(--warm-dim); color: #f3d9b4; }
   .hero p { margin: 0; font-size: 12.5px; line-height: 1.55; color: var(--muted); }
+  .hero .offers { margin-top: 10px; display: grid; gap: 5px; }
+  .hero .offers div { font-size: 12px; line-height: 1.45; color: var(--muted); }
+  .hero .offers b { color: #f3d9b4; font-weight: 600; }
   .applist { max-height: 300px; overflow-y: auto; margin-top: 10px; }
   .app .pkg { color: var(--muted); font-size: 11px; word-break: break-all; }
   .app {
@@ -292,6 +298,17 @@
     <h2>Report</h2>
     <pre id="report">…</pre>
   </div>
+
+  <div class="card" id="labsCard">
+    <h2>In SonoLune</h2>
+    <div class="note" style="margin-top:0">
+      <strong>Labs &rsaquo; Screen &amp; rendering</strong> is where the app
+      hands warmth and dimming to this module instead of drawing a matte over
+      your screen. The switch only appears there once the module is installed,
+      which it now is.
+    </div>
+    <div class="btns" id="labsLinks" style="margin-top:12px"></div>
+  </div>
 </div>
 
 <!-- ===================== QUIET FIELD ===================== -->
@@ -318,6 +335,12 @@
       <button class="tiny" id="winSet">Set</button>
     </div>
     <div class="note" id="winNote" style="color:var(--bad)"></div>
+    <div class="note">
+      A preset applies the moment you tap it. The custom pickers do nothing
+      until you tap <strong>Set</strong>. Either way you are writing one thing:
+      the window. If that window contains the current time, quiet mode starts
+      immediately, which is the point of a schedule rather than a bug.
+    </div>
     <div class="row" style="margin-top:14px">
       <span class="k">Use Do Not Disturb</span>
       <span class="v"><button id="dndBtn" class="tiny">on</button></span>
@@ -632,6 +655,10 @@ function renderAbout() {
     .join('');
 
   // Installed: open the matching screen. Not installed: the Play listing.
+  $('labsLinks').innerHTML = sonoluneInstalled
+    ? '<button data-route="/labs">Open Labs</button>'
+    : (LINKS.sonolune ? '<button data-url="' + LINKS.sonolune + '">Get SonoLune</button>' : '');
+
   $('reportLinks').innerHTML = [
     ['Report a bug', LINKS.bug],
     ['Request a feature', LINKS.feature],
@@ -655,28 +682,51 @@ const HERO = {
   display: {
     title: 'Made for nights, not for screens',
     body: 'Lune Bridge is the root half of <strong>SonoLune</strong>, a calm-first '
-        + 'sleep and focus app. Its <strong>Light suite</strong> gives you the warmth, '
-        + 'the sound and the ritual; this module removes the ceiling Android puts on '
-        + 'them, so the light comes from the display itself instead of a grey sheet '
-        + 'laid over it.',
+        + 'sleep and focus app. This module removes the ceiling Android puts on '
+        + 'warmth and dimming; the <strong>Light suite</strong> is what drives it.',
+    offers: [
+      ['Warmth', 'candlelight without the washed-out tint'],
+      ['Blue light filter', 'the part that actually reaches your eyes'],
+      ['Paper matte', 'takes the gloss off a lit page'],
+      ['Living field', 'light that moves rather than sits still'],
+      ['Colour veil', 'a tint over everything, set by how you feel'],
+    ],
     route: '/light',
     cta:   'Open Light suite',
   },
   quiet: {
     title: 'Quiet should be a setting, not willpower',
     body: 'Quiet Field takes the permissions away, which is the blunt half of the '
-        + 'problem. The <strong>Presence suite</strong> in <strong>SonoLune</strong> is '
-        + 'the other half: wind-downs and focus sessions that end on their own, so '
-        + 'there is something to be doing while the phone stays out of it.',
+        + 'problem. The <strong>Presence suite</strong> in <strong>SonoLune</strong> '
+        + 'is the other half: what you do with the quiet once you have it.',
+    offers: [
+      ['Visual detox', 'strips the colour that makes a screen pull at you'],
+      ['Doom-scroll neutraliser', 'breaks the loop rather than blocking the app'],
+    ],
     route: '/presence',
     cta:   'Open Presence suite',
   },
 };
 
+// Dismissal is per tab. Someone who closes the card on Display has said nothing
+// about the Quiet Field one, and hiding both means they would never see it.
+function heroKey(which) { return 'lune_hid_hero_' + which; }
+let heroTab = 'display';
+
 function renderHero(which) {
   const h = HERO[which] || HERO.display;
+  heroTab = which;
+
+  let hidden = false;
+  try { hidden = localStorage.getItem(heroKey(which)) === '1'; } catch (_) {}
+  $('hero').classList.toggle('hidden', hidden);
+
   $('heroTitle').textContent = h.title;
-  $('heroBody').innerHTML = h.body;
+  $('heroBody').innerHTML = h.body
+    + '<div class="offers">'
+    + h.offers.map(([name, what]) =>
+        '<div><b>' + name + '</b> ' + what + '</div>').join('')
+    + '</div>';
   $('heroLinks').innerHTML = sonoluneInstalled
     ? '<button data-route="' + h.route + '">' + h.cta + '</button>'
       + '<button data-route="">Open SonoLune</button>'
@@ -979,17 +1029,14 @@ $('refresh').addEventListener('click', async () => { await lune('probe'); await 
     document.addEventListener(k, stop, { passive: true }));
 })();
 
-// Same idea for the hero, and the same localStorage caveat: if it cannot be
-// remembered the card simply comes back, which is not worth an error.
-(function heroDismiss() {
-  let hidden = false;
-  try { hidden = localStorage.getItem('lune_hid_hero') === '1'; } catch (_) {}
-  if (hidden) $('hero').classList.add('hidden');
-  $('heroX').addEventListener('click', () => {
-    $('hero').classList.add('hidden');
-    try { localStorage.setItem('lune_hid_hero', '1'); } catch (_) {}
-  });
-})();
+// Which card is showing is decided in renderHero, so this only has to record
+// the dismissal for the tab being looked at. Same localStorage caveat as the
+// guide above: if it cannot be remembered the card comes back, which is not
+// worth an error.
+$('heroX').addEventListener('click', () => {
+  $('hero').classList.add('hidden');
+  try { localStorage.setItem(heroKey(heroTab), '1'); } catch (_) {}
+});
 
 // ----------------------------- quiet field --------------------------------
 // Cycling order for a tap on a quieted app. Deliberately does not include
@@ -1055,6 +1102,8 @@ function renderQuiet() {
       }
     } catch (_) {}
   }
+
+  markWindowPending();
 
   const dnd = (qconf.dnd || 'on') === 'on';
   $('dndBtn').textContent = dnd ? 'on' : 'off';
@@ -1180,7 +1229,9 @@ document.addEventListener('click', async (e) => {
     await quiet('add ' + d.cycle + ' ' + LEVER_CYCLE[(i + 1) % LEVER_CYCLE.length]);
     await loadQuiet();
   } else if (d.window) {
+    const wasOn = qstate.mode === 'on';
     await quiet('window ' + d.window); await loadQuiet();
+    noteSchedule(wasOn);
   } else if (d.url) {
     openUrl(d.url);
   } else if (d.route !== undefined) {
@@ -1229,27 +1280,66 @@ $('winSet').addEventListener('click', async () => {
     return;
   }
   windowNote('');
+  const wasOn = qstate.mode === 'on';
   const r = await quiet('window ' + from + '-' + to);
   if (r.errno !== 0 && r.stdout && /must look like|needs/i.test(r.stdout)) {
     windowNote(r.stdout.trim());
   }
   await loadQuiet();
+  noteSchedule(wasOn);
 });
+
+// Setting a window that already contains the current time starts quiet mode
+// there and then, which is correct and looks like the Set button did something
+// else entirely. Saying so is the whole fix.
+function noteSchedule(wasOn) {
+  if (!wasOn && qstate.mode === 'on') {
+    toast('That window includes right now, so quiet mode is on.');
+  } else if (wasOn && qstate.mode !== 'on') {
+    toast('That window does not include right now, so quiet mode is off.');
+  }
+}
 $('quietNow').addEventListener('click', async () => {
-  await quiet(qstate.mode === 'on' ? 'off' : 'on');
+  const goingOn = qstate.mode !== 'on';
+  await quiet(goingOn ? 'on' : 'off');
   await loadQuiet();
+  // With a schedule running, a manual tap is an override rather than a new
+  // state, and it expires on its own. Saying when stops it looking like the
+  // button failed twenty seconds later.
+  if (qconf.window) {
+    toast(goingOn
+      ? 'Quiet mode on, until your window next changes.'
+      : 'Quiet mode off, until your window next changes.');
+  }
 });
+
+// Set is only meaningful while the pickers differ from what is saved.
+function markWindowPending() {
+  const from = parseTime($('winFrom').value);
+  const to = parseTime($('winTo').value);
+  const typed = (from && to) ? from + '-' + to : '';
+  const saved = qconf.window || '';
+  $('winSet').classList.toggle('pending', !!typed && typed !== saved);
+}
+['winFrom', 'winTo'].forEach((id) =>
+  $(id).addEventListener('input', markWindowPending));
 $('dndBtn').addEventListener('click', async () => {
   const next = (qconf.dnd || 'on') === 'on' ? 'off' : 'on';
   // `quiet dnd off` now releases the hold itself. The old workaround here
   // called `quiet off`, which left quiet mode entirely just to silence DND,
   // and did not even work: it wrote the preference first, so the lift was
   // skipped by the very setting it had just changed.
+  const running = qstate.mode === 'on';
   await quiet('dnd ' + next);
   await loadQuiet();
+  // Whether this changed anything now or set something up for later depends on
+  // whether quiet mode is running, and guessing wrong is exactly what makes the
+  // toggle look dead.
   toast(next === 'on'
-    ? 'Do Not Disturb will come on during quiet hours.'
-    : 'Quiet hours will only apply the per-app levers now.');
+    ? (running ? 'Do Not Disturb on now, and during quiet hours.'
+               : 'Do Not Disturb will come on during quiet hours.')
+    : (running ? 'Do Not Disturb off. Quiet hours keep the per-app levers.'
+               : 'Quiet hours will only apply the per-app levers now.'));
 });
 
 $('watch').addEventListener('click', async () => {
