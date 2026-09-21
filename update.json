@@ -1,6 +1,6 @@
 {
-  "version": "v2.0.0",
-  "versionCode": 20000,
-  "zipUrl": "https://github.com/uraniam9/lune-bridge/releases/download/v2.0.0/LuneBridge-v2.0.0.zip",
+  "version": "v2.0.1",
+  "versionCode": 20001,
+  "zipUrl": "https://github.com/uraniam9/lune-bridge/releases/download/v2.0.1/LuneBridge-v2.0.1.zip",
   "changelog": "https://github.com/uraniam9/lune-bridge/raw/main/CHANGELOG.md"
 }
