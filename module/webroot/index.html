@@ -105,6 +105,15 @@
      so it closes for good. The heading reserves room so a long title never
      runs under the button. */
   .hero h3 { margin: 0 0 6px; padding-right: 30px; font-size: 15px; font-weight: 600; color: #f3d9b4; }
+  /* The card can be dismissed, so who made this has to live somewhere that
+     cannot be. Small, beside the title, and it opens the app. */
+  .by {
+    display: inline-block; margin-left: 8px; padding: 3px 8px;
+    border: 1px solid var(--warm-dim); border-radius: 999px;
+    font-size: 11px; font-weight: 500; letter-spacing: .02em;
+    color: var(--warm); vertical-align: middle; white-space: nowrap;
+  }
+  .by strong { color: #f3d9b4; font-weight: 600; }
   .heroX {
     position: absolute; top: 7px; right: 7px;
     width: 32px; height: 32px; padding: 0; line-height: 1;
@@ -136,18 +145,13 @@
 </head>
 <body>
 
-<h1>Lune Bridge</h1>
+<h1>Lune Bridge <span class="by" id="bySono" data-route="">by <strong>SonoLune</strong></span></h1>
 <div class="sub" id="device">reading device…</div>
 
 <div class="hero" id="hero">
   <button class="heroX" id="heroX" aria-label="Hide this card" title="Hide this card">&#10005;</button>
-  <h3>Made for nights, not for screens</h3>
-  <p>
-    Lune Bridge is the root half of <strong>SonoLune</strong> — a calm-first
-    sleep and focus app. SonoLune gives you the warmth, the sound and the
-    ritual; this module removes the ceiling Android puts on them, so the light
-    comes from the display itself instead of a grey sheet laid over it.
-  </p>
+  <h3 id="heroTitle">Made for nights, not for screens</h3>
+  <p id="heroBody"></p>
   <div class="btns" id="heroLinks" style="margin-top:12px"></div>
 </div>
 
@@ -163,6 +167,10 @@
     darkness out of the colour instead, so there is nothing to strobe.<br><br>
     Nothing here is permanent. <strong>Reset to stock</strong> at the bottom of
     this tab puts everything back, and removing the module undoes it entirely.
+    <br><br>
+    If the screen is ever too dark to find that button, <strong>press and hold
+    anywhere on this page for two seconds</strong> and it resets. That is the
+    way back when you cannot see what you are aiming at.
   </p>
   <div class="btns" style="margin-top:12px">
     <button id="firstRunDone">Got it</button>
@@ -399,6 +407,13 @@
   <div class="note" id="aboutSupport"></div>
   <div class="divider"></div>
   <div class="note" style="margin-top:0">
+    <strong>Something broken, or something missing?</strong> These open a form
+    on GitHub that already asks the right questions, so a report does not turn
+    into five rounds of me asking which device you are on.
+  </div>
+  <div class="btns" id="reportLinks" style="margin-top:10px"></div>
+  <div class="divider"></div>
+  <div class="note" style="margin-top:0">
     <strong>No warranty.</strong> This is a root module: it changes display
     settings and app permissions on your device, and you use it at your own
     risk. It is provided as-is with no warranty of any kind, and the author is
@@ -455,6 +470,12 @@ const LINKS = {
   // carries recurring support behind "Make this monthly".
   source:   'https://github.com/uraniam9/lune-bridge',
   coffee:   'https://buymeacoffee.com/uraniam9',
+  // Straight at the templates rather than at the issue list. A form that
+  // already asks for the device and the Android version gets those answers;
+  // an empty box gets "it doesn't work".
+  bug:      'https://github.com/uraniam9/lune-bridge/issues/new?template=bug_report.yml',
+  feature:  'https://github.com/uraniam9/lune-bridge/issues/new?template=feature_request.yml',
+  knee:     'https://github.com/uraniam9/lune-bridge/issues/new?template=device_profile.yml',
 };
 
 const MOD = '/data/adb/modules/lune_bridge';
@@ -601,11 +622,13 @@ function renderAbout() {
     .join('');
 
   // Installed: open the matching screen. Not installed: the Play listing.
-  $('heroLinks').innerHTML = sonoluneInstalled
-    ? '<button data-route="">Open SonoLune</button>'
-      + '<button data-route="/light">Light suite</button>'
-      + '<button data-route="/labs">Screen &amp; rendering</button>'
-    : (LINKS.sonolune ? '<button data-url="' + LINKS.sonolune + '">Get SonoLune</button>' : '');
+  $('reportLinks').innerHTML = [
+    ['Report a bug', LINKS.bug],
+    ['Request a feature', LINKS.feature],
+    ['Share my PWM knee', LINKS.knee],
+  ].filter(([, url]) => url)
+   .map(([label, url]) => '<button data-url="' + url + '">' + label + '</button>')
+   .join('');
 
   $('aboutSupport').textContent = LINKS.coffee
     ? 'The module is free and always will be. If it stopped your eyes hurting '
@@ -615,6 +638,41 @@ function renderAbout() {
       + 'your phone gets a measured value instead of a guess.';
 }
 
+// The two tabs solve different problems, so the card points at whichever half
+// of the app matches what you are looking at. Running the same pitch twice is
+// how a promotion starts feeling like an advert.
+const HERO = {
+  display: {
+    title: 'Made for nights, not for screens',
+    body: 'Lune Bridge is the root half of <strong>SonoLune</strong>, a calm-first '
+        + 'sleep and focus app. Its <strong>Light suite</strong> gives you the warmth, '
+        + 'the sound and the ritual; this module removes the ceiling Android puts on '
+        + 'them, so the light comes from the display itself instead of a grey sheet '
+        + 'laid over it.',
+    route: '/light',
+    cta:   'Open Light suite',
+  },
+  quiet: {
+    title: 'Quiet should be a setting, not willpower',
+    body: 'Quiet Field takes the permissions away, which is the blunt half of the '
+        + 'problem. The <strong>Presence suite</strong> in <strong>SonoLune</strong> is '
+        + 'the other half: wind-downs and focus sessions that end on their own, so '
+        + 'there is something to be doing while the phone stays out of it.',
+    route: '/presence',
+    cta:   'Open Presence suite',
+  },
+};
+
+function renderHero(which) {
+  const h = HERO[which] || HERO.display;
+  $('heroTitle').textContent = h.title;
+  $('heroBody').innerHTML = h.body;
+  $('heroLinks').innerHTML = sonoluneInstalled
+    ? '<button data-route="' + h.route + '">' + h.cta + '</button>'
+      + '<button data-route="">Open SonoLune</button>'
+    : (LINKS.sonolune ? '<button data-url="' + LINKS.sonolune + '">Get SonoLune</button>' : '');
+}
+
 // ------------------------------- tabs -------------------------------------
 function showTab(which) {
   const d = which === 'display';
@@ -622,6 +680,7 @@ function showTab(which) {
   $('paneQuiet').classList.toggle('hidden', d);
   $('tabDisplay').classList.toggle('sel', d);
   $('tabQuiet').classList.toggle('sel', !d);
+  renderHero(d ? 'display' : 'quiet');
   if (!d) loadQuiet();
 }
 $('tabDisplay').addEventListener('click', () => showTab('display'));
@@ -872,6 +931,44 @@ $('refresh').addEventListener('click', async () => { await lune('probe'); await 
   });
 })();
 
+// The reset button is the way back from a screen too dark to read, which is
+// exactly the moment it cannot be found. So the same gesture works anywhere on
+// the page that is not already a control. Two seconds rather than the button's
+// one: there is nothing to aim at here, so the cost of an accidental reset is
+// higher than the cost of a slow one.
+(function holdAnywhereToReset() {
+  const HOLD_MS = 2000;
+  const CONTROLS = 'button, input, select, textarea, a, [data-url], [data-route]';
+  const HINT_MS = 450;
+  let timer = null, hint = null;
+
+  const stop = () => {
+    clearTimeout(timer); clearTimeout(hint);
+    timer = hint = null;
+  };
+
+  const begin = (e) => {
+    const el = e.target.closest ? e.target.closest(CONTROLS) : null;
+    if (el) return;                 // let controls be controls
+    stop();
+    // The hint waits, or every stray tap on the background announces a reset
+    // nobody asked about.
+    hint = setTimeout(() => toast('Keep holding to reset everything…'), HINT_MS);
+    timer = setTimeout(async () => {
+      stop();
+      await lune('reset');
+      await load();
+      toast('Reset. Back to stock.');
+    }, HOLD_MS);
+  };
+
+  ['pointerdown', 'touchstart'].forEach((k) =>
+    document.addEventListener(k, begin, { passive: true }));
+  // A scroll is someone reading, not someone resetting.
+  ['pointerup', 'pointercancel', 'touchend', 'touchcancel', 'scroll'].forEach((k) =>
+    document.addEventListener(k, stop, { passive: true }));
+})();
+
 // Same idea for the hero, and the same localStorage caveat: if it cannot be
 // remembered the card simply comes back, which is not worth an error.
 (function heroDismiss() {
@@ -915,6 +1012,17 @@ function renderQuiet() {
   if (w) {
     $('winFrom').value = w.slice(0, 2) + ':' + w.slice(2, 4);
     $('winTo').value = w.slice(5, 7) + ':' + w.slice(7, 9);
+    try { localStorage.setItem('lune_win', w); } catch (_) {}
+  } else {
+    // Turning the schedule off should not throw away the times that were typed
+    // into it. Switching it back on is then one tap rather than two pickers.
+    try {
+      const last = localStorage.getItem('lune_win') || '';
+      if (last.length >= 9) {
+        $('winFrom').value = last.slice(0, 2) + ':' + last.slice(2, 4);
+        $('winTo').value = last.slice(5, 7) + ':' + last.slice(7, 9);
+      }
+    } catch (_) {}
   }
 
   const dnd = (qconf.dnd || 'on') === 'on';
@@ -1115,6 +1223,9 @@ $('qreset').addEventListener('click', async () => { await quiet('reset'); await 
 (async () => {
   await detectSonoLune();
   renderAbout();
+  // Needs sonoluneInstalled, so it cannot run before the detect above. The
+  // Display tab is the one showing at startup.
+  renderHero('display');
   renderOwnership();
   await load();
 })();
