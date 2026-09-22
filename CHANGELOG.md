@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.0.3
+
+**The panel now tells you when there is a newer release.** 2.0.2 fixed a bug
+that could leave a lock screen unreadable, and the people who needed it had no
+way of knowing it existed. That is a poor way to ship a fix.
+
+It shows the new version, links its release notes, and has a Skip button for
+when you have heard enough about that one.
+
+Where the network is concerned, the rules it follows:
+
+- It runs **when you open the panel**, never from the daemon. A module whose
+  argument is that it stays out of your way has no business talking to the
+  internet while you are asleep.
+- The answer is **cached on the device for twelve hours**, so opening the panel
+  repeatedly does not mean repeatedly asking GitHub.
+- It fetches **one static file** from the repo. Nothing identifying is sent and
+  nothing is recorded anywhere but on your phone.
+- `lunectl update off` **stops it for good**, and `lunectl update` runs it by
+  hand whenever you want.
+
+A reply that is not the feed is discarded rather than believed, so a captive
+portal login page cannot turn into "you are out of date".
+
+Also fixed: `.hidden` lost to any rule that set its own `display` and happened
+to come later in the stylesheet, which the new bar was the first element to
+actually trip over.
+
 ## 2.0.2
 
 **Fixes a bug that could leave you looking at a lock screen too dark to read.**

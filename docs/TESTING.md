@@ -55,7 +55,7 @@ floor only.
 ## 2. Copy the module across
 
 ```bash
-adb push dist/LuneBridge-v2.0.2.zip /sdcard/Download/
+adb push dist/LuneBridge-v2.0.3.zip /sdcard/Download/
 ```
 
 ## 3. Flash it
@@ -67,10 +67,10 @@ Command line, if you prefer:
 
 ```bash
 # Magisk
-adb shell su -c "magisk --install-module /sdcard/Download/LuneBridge-v2.0.2.zip"
+adb shell su -c "magisk --install-module /sdcard/Download/LuneBridge-v2.0.3.zip"
 
 # KernelSU
-adb shell su -c "ksud module install /sdcard/Download/LuneBridge-v2.0.2.zip"
+adb shell su -c "ksud module install /sdcard/Download/LuneBridge-v2.0.3.zip"
 ```
 
 Read the install output. It aborts on Android below 9 and warns below 12.

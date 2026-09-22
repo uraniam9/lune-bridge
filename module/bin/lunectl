@@ -8,7 +8,7 @@
 
 . "${LUNE_MODDIR:-/data/adb/modules/lune_bridge}/lib/core.sh"
 
-VERSION=2.0.2
+VERSION=2.0.3
 
 # The framework's integer brightness scale. config_screenBrightnessSettingMaximum
 # is 255 on effectively every device and our overlay does not change it.
@@ -26,6 +26,8 @@ lunectl - Lune Bridge, Display
   knee <1-100>            tell Lune where this panel starts flickering
   backlight <raw|auto>    write the panel node directly (advanced)
   probe                   re-run capability detection
+  update [on|off]         check for a newer release. Network, and only when
+                          you ask for it. 'off' disables it for good.
   apply                   re-apply saved settings (used at boot)
   reset                   undo everything Lune has changed
   version
@@ -260,6 +262,80 @@ cmd_apply() {
     log "apply: warm=$_w level=$_l"
 }
 
+# How long a check is good for. The panel calls this every time it opens, and
+# hitting GitHub on every open would be rude to them and pointless for you.
+UPDATE_TTL=43200   # 12 hours
+
+cmd_update() {
+    case "${1:-}" in
+        off) conf_set update_check off
+             echo "lune: update check off. Nothing here will touch the network."
+             return 0 ;;
+        on)  conf_set update_check on
+             echo "lune: update check on."
+             return 0 ;;
+    esac
+
+    _cur=$(grep '^versionCode=' "$LUNE_MODDIR/module.prop" | cut -d= -f2)
+    _curver=$(grep '^version=' "$LUNE_MODDIR/module.prop" | cut -d= -f2)
+
+    if [ "$(conf_get update_check on)" = "off" ]; then
+        echo "enabled=no"
+        echo "current=$_cur"
+        return 0
+    fi
+
+    _cache="$LUNE_DIR/update"
+    _now=$(date +%s 2>/dev/null || echo 0)
+    _age=$(( _now - $(kv_get "$_cache" checked_at 0) ))
+
+    # Serve the cache unless it has aged out or the caller insisted.
+    if [ "${1:-}" != "--force" ] && [ "$_age" -lt "$UPDATE_TTL" ] \
+       && [ -n "$(kv_get "$_cache" latest)" ]; then
+        _latest=$(kv_get "$_cache" latest)
+        _ver=$(kv_get "$_cache" version)
+        _url=$(kv_get "$_cache" url)
+    else
+        _feed=$(grep '^updateJson=' "$LUNE_MODDIR/module.prop" | cut -d= -f2-)
+        _json=$(fetch_url "$_feed") || {
+            echo "enabled=yes"
+            echo "current=$_cur"
+            echo "reachable=no"
+            return 0
+        }
+        _latest=$(json_field "$_json" versionCode)
+        _ver=$(json_field "$_json" version)
+        _url=$(json_field "$_json" releaseUrl)
+        [ -n "$_url" ] || _url=$(json_field "$_json" zipUrl)
+        # A feed that came back as something other than the feed is not worth
+        # caching, and definitely not worth telling anyone they are out of date
+        # over.
+        is_int "$_latest" || {
+            echo "enabled=yes"
+            echo "current=$_cur"
+            echo "reachable=no"
+            return 0
+        }
+        kv_set "$_cache" checked_at "$_now"
+        kv_set "$_cache" latest "$_latest"
+        kv_set "$_cache" version "$_ver"
+        kv_set "$_cache" url "$_url"
+    fi
+
+    echo "enabled=yes"
+    echo "reachable=yes"
+    echo "current=$_cur"
+    echo "current_version=$_curver"
+    echo "latest=$_latest"
+    echo "version=$_ver"
+    echo "url=$_url"
+    if is_int "$_latest" && [ "$_latest" -gt "$_cur" ]; then
+        echo "newer=yes"
+    else
+        echo "newer=no"
+    fi
+}
+
 cmd_reset() {
     setting_put secure night_display_activated 0
     setting_put secure reduce_bright_colors_activated 0
@@ -322,6 +398,7 @@ case "$1" in
         ;;
     probe)   "$LUNE_MODDIR/bin/lune-probe" ;;
     apply)   cmd_apply ;;
+    update)  cmd_update "${2:-}" ;;
     reset)   cmd_reset ;;
     version) echo "$VERSION" ;;
     -h|--help|help) usage ;;

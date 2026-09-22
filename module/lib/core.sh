@@ -115,6 +115,43 @@ setting_put() {
 
 setting_delete() { settings delete "$1" "$2" >/dev/null 2>&1; }
 
+# ---------------------------------------------------------------------------
+# Update check
+# ---------------------------------------------------------------------------
+#
+# The only part of this module that touches the network, and it only runs when
+# someone asks: from `lunectl update`, or when the panel is opened. Never from
+# the daemon. A module whose whole argument is that it stays out of your way
+# has no business talking to the internet while you are asleep.
+#
+# It fetches one static file from the repo. No identifiers are sent, nothing is
+# logged anywhere but on this device, and `lunectl update off` stops it for
+# good.
+
+fetch_url() {
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --max-time 8 "$1" 2>/dev/null
+    elif command -v wget >/dev/null 2>&1; then
+        wget -qO- -T 8 "$1" 2>/dev/null
+    else
+        return 1
+    fi
+}
+
+# One field out of a flat JSON object, without a JSON parser, because there is
+# not one here. Only safe because update.json is written by this repo, is one
+# level deep, and holds no nested or escaped values.
+json_field() {
+    # json_field <json> <key>
+    #
+    # update.json is flat, one level deep, and written by this repo, so this
+    # does not need a parser. Split on the structural characters, find the
+    # line holding the key, and take everything after the first colon. The
+    # value keeps its own colons, which matters because one of them is a URL.
+    printf '%s' "$1" | tr ',{}' '\n\n\n' | grep "\"$2\"" | head -1 \
+        | cut -d: -f2- | tr -d ' "' | tr -d '\r'
+}
+
 # Read back what the framework actually stored. The framework clamps values it
 # considers out of range, so comparing the read-back against what we asked for
 # is how the module tells "the overlay is active" from "the overlay installed

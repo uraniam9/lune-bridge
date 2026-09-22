@@ -156,13 +156,34 @@
     transition: opacity .2s; z-index: 50;
   }
   #toast.show { opacity: 1; }
-  .hidden { display: none; }
+  /* !important because this is a utility class competing with rules that set
+     their own display. .upd is a flex row defined further down, and with
+     equal specificity the later rule won, so the update bar was permanently
+     visible and empty. */
+  .hidden { display: none !important; }
+  /* Sits above everything because an update that fixes a lock screen is worth
+     interrupting for, and carries Skip because being told twice is enough. */
+  .upd {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    border: 1px solid var(--warm); border-radius: var(--radius);
+    background: #221a12; padding: 12px 14px; margin-bottom: 14px;
+  }
+  .upd .t { flex: 1; min-width: 180px; font-size: 12.5px; line-height: 1.5; color: var(--text); }
+  .upd .t b { color: var(--warm); }
 </style>
 </head>
 <body>
 
 <h1>Lune Bridge <span class="by" id="bySono" data-route="">by <strong>SonoLune</strong></span></h1>
 <div class="sub" id="device">reading device…</div>
+
+<div class="upd hidden" id="updateBar">
+  <div class="t" id="updateText"></div>
+  <div class="btns">
+    <button class="tiny" id="updateOpen">Release notes</button>
+    <button class="tiny" id="updateSkip">Skip</button>
+  </div>
+</div>
 
 <div class="hero" id="hero">
   <button class="heroX" id="heroX" aria-label="Hide this card" title="Hide this card">&#10005;</button>
@@ -1031,6 +1052,32 @@ $('refresh').addEventListener('click', async () => { await lune('probe'); await 
     document.addEventListener(k, stop, { passive: true }));
 })();
 
+// Update check. Runs when the panel is opened and never in the background,
+// the answer is cached on the device for twelve hours, and `lunectl update off`
+// stops it for good. A module that argues for staying out of your way should
+// not be talking to the internet while you are asleep.
+async function checkUpdate() {
+  let u;
+  try { u = parseKV((await lune('update')).stdout || ''); } catch (_) { return; }
+  if (!u || u.newer !== 'yes' || !u.version) return;
+
+  let skipped = '';
+  try { skipped = localStorage.getItem('lune_skip_update') || ''; } catch (_) {}
+  if (skipped === u.latest) return;
+
+  $('updateText').innerHTML =
+    '<b>' + escapeHtml(u.version) + '</b> is out. You are on ' +
+    escapeHtml(u.current_version || 'this build') + '.';
+  $('updateBar').classList.remove('hidden');
+
+  $('updateOpen').onclick = () => { if (u.url) openUrl(u.url); };
+  $('updateSkip').onclick = () => {
+    $('updateBar').classList.add('hidden');
+    try { localStorage.setItem('lune_skip_update', u.latest); } catch (_) {}
+    toast('Skipped. The panel will mention the next one instead.');
+  };
+}
+
 // Which card is showing is decided in renderHero, so this only has to record
 // the dismissal for the tab being looked at. Same localStorage caveat as the
 // guide above: if it cannot be remembered the card comes back, which is not
@@ -1358,6 +1405,9 @@ $('qreset').addEventListener('click', async () => { await quiet('reset'); await 
   // Display tab is the one showing at startup.
   renderHero('display');
   renderOwnership();
+  // Last, and deliberately not awaited: a slow or unreachable network must
+  // never hold up the controls.
+  checkUpdate();
   await load();
 })();
 </script>

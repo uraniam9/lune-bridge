@@ -243,6 +243,25 @@ ok "slow with rules only"    "$(quiet_interval)" 300
 qconf_set window 2100-0800
 ok "minute during schedule"  "$(quiet_interval)" 60
 
+echo "update: reading the release feed"
+# No JSON parser here, so the field reader is hand-rolled and worth pinning.
+# The URL matters most: it contains colons, and a naive split on the first one
+# would hand back "//github.com/..." and send people nowhere.
+FEED='{
+  "version": "v2.0.3",
+  "versionCode": 20003,
+  "zipUrl": "https://github.com/uraniam9/lune-bridge/releases/download/v2.0.3/LuneBridge-v2.0.3.zip",
+  "releaseUrl": "https://github.com/uraniam9/lune-bridge/releases/tag/v2.0.3",
+  "changelog": "https://github.com/uraniam9/lune-bridge/raw/main/CHANGELOG.md"
+}'
+ok "version"        "$(json_field "$FEED" version)"     "v2.0.3"
+ok "versionCode"    "$(json_field "$FEED" versionCode)" "20003"
+ok "url keeps colons" "$(json_field "$FEED" releaseUrl)"    "https://github.com/uraniam9/lune-bridge/releases/tag/v2.0.3"
+ok "absent key empty" "$(json_field "$FEED" nosuchkey)"  ""
+# Anything that is not the feed must not be read as a version, or a captive
+# portal login page turns into "you are out of date".
+ok "garbage is not a code" "$(json_field '<html>404</html>' versionCode)" ""
+
 echo "probe: settings are put back the way they were found"
 # This is the one that bricked lock screens. The probe writes a test value to
 # see whether the framework still clamps it, and has to undo that. When the key
