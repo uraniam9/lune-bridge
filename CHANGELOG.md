@@ -1,5 +1,3 @@
-# Changelog
-
 ## 2.0.3
 
 **The panel now tells you when there is a newer release.** 2.0.2 fixed a bug
