@@ -16,17 +16,14 @@ Where the network is concerned, the rules it follows:
   internet while you are asleep.
 - The answer is **cached on the device for twelve hours**, so opening the panel
   repeatedly does not mean repeatedly asking GitHub.
-- It fetches **one static file** from the repo. Nothing identifying is sent and
-  nothing is recorded anywhere but on your phone.
+- It fetches **one static file** from the repo. It sends no identifiers of its
+  own: no device ID, no install ID, nothing about your phone. Nothing is
+  recorded anywhere but on your phone.
 - `lunectl update off` **stops it for good**, and `lunectl update` runs it by
   hand whenever you want.
 
 A reply that is not the feed is discarded rather than believed, so a captive
 portal login page cannot turn into "you are out of date".
-
-Also fixed: `.hidden` lost to any rule that set its own `display` and happened
-to come later in the stylesheet, which the new bar was the first element to
-actually trip over.
 
 ## 2.0.2
 
