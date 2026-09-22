@@ -8,7 +8,7 @@
 
 . "${LUNE_MODDIR:-/data/adb/modules/lune_bridge}/lib/core.sh"
 
-VERSION=2.0.1
+VERSION=2.0.2
 
 # The framework's integer brightness scale. config_screenBrightnessSettingMaximum
 # is 255 on effectively every device and our overlay does not change it.

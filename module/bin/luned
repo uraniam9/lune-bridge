@@ -90,7 +90,17 @@ main() {
         exit 0
     fi
 
-    "$LUNE_MODDIR/bin/lune-probe" -q
+    # The probe asks the framework to store values it might clamp, which means
+    # it writes to secure display settings. Doing that once is necessary; doing
+    # it on every single boot turns any mistake in there into a thing that
+    # happens forever rather than once. What it measures only changes when the
+    # ROM or the module changes, so key the answer on both and skip it
+    # otherwise. `lunectl probe` still re-runs it on demand.
+    _probe_key="$(getprop ro.build.fingerprint):$(grep '^versionCode='         "$LUNE_MODDIR/module.prop" 2>/dev/null | cut -d= -f2)"
+    if [ "$(cap_get probe_key)" != "$_probe_key" ]; then
+        "$LUNE_MODDIR/bin/lune-probe" -q
+        cap_set probe_key "$_probe_key"
+    fi
     quiet_probe_ops
     "$LUNE_MODDIR/bin/lunectl" apply
 

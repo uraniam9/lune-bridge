@@ -1,5 +1,35 @@
 # Changelog
 
+## 2.0.2
+
+**Fixes a bug that could leave you looking at a lock screen too dark to read.**
+If you hit this, boot into Android's safe mode (hold Volume Down through the
+boot animation) to get back in, then update.
+
+At boot the module probes what the framework still clamps, and it does that by
+writing a value and reading back what was stored. It then puts the old value
+back. When the setting had never been written on that device there was no old
+value to put back, and instead of clearing the key it left its own test value
+sitting there: Extra Dim strength at 95, the warm floor at 1700K.
+
+On a device where Extra Dim or Night Light was already switched on, that took
+effect on the next boot. The screen came up at roughly a twentieth of its
+normal light, or deep amber, on a lock screen the owner then could not read
+well enough to unlock. The module was working exactly as designed and the phone
+was unusable, which is the worst shape a bug can take.
+
+The probe now clears a key it found empty rather than leaving a value behind.
+Two tests cover it, and both fail against the old code.
+
+**The boot probe now runs only when something changed.** What it measures moves
+only when the ROM or the module does, so it is keyed on both and skipped
+otherwise. Writing to display settings on every single boot is what turned one
+mistake into a thing that happened every time. `lunectl probe` still re-runs it
+whenever you want.
+
+Reported independently by two people on two different root managers, which is
+what made it obvious this was the module rather than anything device-specific.
+
 ## 2.0.1
 
 Fixes found by using it on a phone rather than reading it.

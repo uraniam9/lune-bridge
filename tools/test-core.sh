@@ -243,6 +243,52 @@ ok "slow with rules only"    "$(quiet_interval)" 300
 qconf_set window 2100-0800
 ok "minute during schedule"  "$(quiet_interval)" 60
 
+echo "probe: settings are put back the way they were found"
+# This is the one that bricked lock screens. The probe writes a test value to
+# see whether the framework still clamps it, and has to undo that. When the key
+# had never been written it used to leave the test value in place, so a device
+# with Extra Dim already on came back from a reboot at 95 strength: a lock
+# screen too dark to read, on a phone that was working a minute earlier.
+SETDB="$TMPSTATE/settings"
+: > "$SETDB"
+settings() {
+    case "$1" in
+        get)    grep "^$2/$3=" "$SETDB" 2>/dev/null | tail -1 | cut -d= -f2- ;;
+        put)    printf '%s/%s=%s
+' "$2" "$3" "$4" >> "$SETDB" ;;
+        delete) grep -v "^$2/$3=" "$SETDB" > "$SETDB.n" 2>/dev/null; mv "$SETDB.n" "$SETDB" ;;
+    esac
+}
+
+# A key that already holds a value must come back holding that same value.
+settings put secure reduce_bright_colors_level 50
+setting_accepts secure reduce_bright_colors_level 95
+ok "existing value restored"   "$(setting_get secure reduce_bright_colors_level)" 50
+
+# A key that was never set must be left unset, not holding the probe's value.
+settings delete secure reduce_bright_colors_level
+setting_accepts secure reduce_bright_colors_level 95
+ok "unset key left unset"      "$(setting_get secure reduce_bright_colors_level)" ""
+
+# Same for the warm floor, which is the other value the boot probe writes.
+settings delete secure night_display_color_temperature
+setting_accepts secure night_display_color_temperature 1700
+ok "warm floor left unset"     "$(setting_get secure night_display_color_temperature)" ""
+
+# And the answer it returns has to stay correct through all of that.
+settings() {
+    case "$1" in
+        get)    grep "^$2/$3=" "$SETDB" 2>/dev/null | tail -1 | cut -d= -f2- ;;
+        put)    printf '%s/%s=%s
+' "$2" "$3" "90" >> "$SETDB" ;;   # framework clamps
+        delete) grep -v "^$2/$3=" "$SETDB" > "$SETDB.n" 2>/dev/null; mv "$SETDB.n" "$SETDB" ;;
+    esac
+}
+settings delete secure reduce_bright_colors_level
+setting_accepts secure reduce_bright_colors_level 95
+ok "clamped value reports no"  "$?" 1
+unset -f settings
+
 echo "quiet: dnd preference while running"
 # Changing the preference mid-quiet has to act in both directions. Stub the two
 # calls that reach the framework so the bookkeeping is what gets tested.

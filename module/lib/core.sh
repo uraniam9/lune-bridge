@@ -113,6 +113,8 @@ setting_put() {
     return 0
 }
 
+setting_delete() { settings delete "$1" "$2" >/dev/null 2>&1; }
+
 # Read back what the framework actually stored. The framework clamps values it
 # considers out of range, so comparing the read-back against what we asked for
 # is how the module tells "the overlay is active" from "the overlay installed
@@ -122,7 +124,19 @@ setting_accepts() {
     _before=$(setting_get "$1" "$2")
     setting_put "$1" "$2" "$3" || return 1
     _after=$(setting_get "$1" "$2")
-    [ -n "$_before" ] && [ "$_before" != "null" ] && setting_put "$1" "$2" "$_before"
+    if [ -n "$_before" ] && [ "$_before" != "null" ]; then
+        setting_put "$1" "$2" "$_before"
+    else
+        # There was no stored value, so there is nothing to put back, and
+        # putting nothing back used to mean leaving the probe's own test value
+        # behind. That is how this probe bricked lock screens: on a device
+        # where the key had never been written, the boot probe left Extra Dim
+        # at 95 and the warm floor at 1700K, and anyone who already had Extra
+        # Dim or Night Light switched on came back to a screen too dark or too
+        # amber to read, on a lock screen they could not get past. Delete it,
+        # so the framework goes back to using its own default.
+        setting_delete "$1" "$2"
+    fi
     [ "$_after" = "$3" ]
 }
 
