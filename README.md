@@ -362,9 +362,6 @@ why the daemon does almost nothing and why that's deliberate.
 First time on hardware? [docs/TESTING.md](docs/TESTING.md) walks through it,
 recovery path first.
 
-A copy-paste release announcement for XDA and r/Magisk is in
-[docs/RELEASE-POST.md](docs/RELEASE-POST.md).
-
 ## SonoLune
 
 Lune Bridge is the root companion to **SonoLune**, a calm-first sleep and focus
