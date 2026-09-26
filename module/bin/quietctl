@@ -7,7 +7,7 @@
 
 . "${LUNE_MODDIR:-/data/adb/modules/lune_bridge}/lib/quiet.sh"
 
-VERSION=2.0.3
+VERSION=2.0.4
 
 DEFAULT_LEVERS="wake,screen,fullscreen"
 
@@ -105,17 +105,20 @@ cmd_list() {
 
 cmd_window() {
     if [ "$1" = "off" ]; then
-        qconf_set window ""
-        quiet_leave
-        echo "quiet: schedule cleared. Use 'quietctl on' for manual control."
+        # 2.0.4: a quiet turned on by hand survives the schedule going away.
+        quiet_window_clear
+        if [ "$(quiet_mode)" = "on" ]; then
+            echo "quiet: schedule cleared. Quiet stays on until you turn it off."
+        else
+            echo "quiet: schedule cleared. Use 'quietctl on' for manual control."
+        fi
         return 0
     fi
     quiet_window_valid "$1" \
         || die "window must look like 2100-0800 (24h, HHMM-HHMM, start and end differ)"
-    qconf_set window "$1"
-    quiet_override_clear
     echo "quiet: quiet hours ${1%-*} to ${1#*-}"
-    quiet_tick
+    # 2.0.4: and survives a new schedule, until that schedule's next edge.
+    quiet_window_set "$1"
 }
 
 cmd_status() {

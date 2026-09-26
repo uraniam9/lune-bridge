@@ -203,7 +203,7 @@ you nothing.
 Requires Android 9+ and Magisk 20.4+, KernelSU or APatch. Android 12+ for the
 dimming feature specifically.
 
-1. Download `LuneBridge-v2.0.3.zip` from Releases.
+1. Download `LuneBridge-v2.0.4.zip` from Releases.
 2. Flash it in Magisk / KernelSU / APatch.
 3. Reboot.
 4. `su -c lunectl status`
@@ -330,7 +330,7 @@ Needs an Android SDK (build-tools + one platform), a JDK, and Python 3.
 ./tools/build.sh
 ```
 
-Produces `dist/LuneBridge-v2.0.3.zip`. The build computes the colour
+Produces `dist/LuneBridge-v2.0.4.zip`. The build computes the colour
 ramp from source and **refuses to continue if the ramp fails its own
 validation**, so a bad curve can't reach a release.
 
@@ -369,9 +369,11 @@ app. SonoLune works fine without root. It dims and warms by drawing a matte
 over the screen, the way every no-root app has to.
 
 With this module installed, it stops doing that. Warmth and dimming move into
-the display pipeline instead: no overlay over your screen, clean screenshots,
-secure surfaces covered, and the full 1700K range rather than Android's 2596K
-floor. Turn it on in **Labs → Screen & rendering**.
+the display pipeline instead: neither is drawn over your screen any more (the
+app's other effects, like grain and veil, still are), clean screenshots, secure
+surfaces covered, and the full 1700K range rather than Android's 2596K floor.
+Turn it on with **Let SonoLune use it**, on SonoLune's **Lune Bridge** page
+(the Light room leads there once the module is installed).
 
 The module stands alone. You don't need the app to use it, and everything
 here works from `lunectl` and `quietctl` on their own.

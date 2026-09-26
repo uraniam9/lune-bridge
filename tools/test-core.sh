@@ -375,6 +375,35 @@ qconf_set window 2100-0800
 quiet_override_clear
 ok "new schedule clears it"     "$(kv_get "$QUIET_STATE" override "")" ""
 
+echo "quiet: changing the schedule keeps a manual quiet (2.0.4)"
+# Reported from SonoLune: its "Every night" switch also switched "Quiet now"
+# off, both ways round.
+rm -f "$QUIET_APPS" "$QUIET_CONF" "$QUIET_STATE"
+quiet_now_minutes() { echo 720; }                 # noon, outside 2100-0800
+kv_set "$QUIET_STATE" mode on                     # quiet on by hand, no schedule
+quiet_window_set 2100-0800
+ok "setting a schedule keeps it on"  "$(quiet_mode)" on
+ok "kept as an override"             "$(kv_get "$QUIET_STATE" override "")" on
+quiet_tick
+ok "and the tick leaves it"          "$(quiet_mode)" on
+quiet_window_clear
+ok "clearing it keeps it on too"     "$(quiet_mode)" on
+
+# Quiet that the schedule itself turned on still ends with the schedule.
+rm -f "$QUIET_STATE"
+quiet_now_minutes() { echo 1320; }                # 22:00, inside
+quiet_window_set 2100-0800
+ok "the schedule turns it on"        "$(quiet_mode)" on
+ok "with no override"                "$(kv_get "$QUIET_STATE" override "")" ""
+quiet_window_clear
+ok "clearing the schedule ends it"   "$(quiet_mode)" off
+
+# Off stays off: a new schedule outside its hours does not switch it on.
+rm -f "$QUIET_STATE"
+quiet_now_minutes() { echo 720; }
+quiet_window_set 2100-0800
+ok "off, and the schedule says off"  "$(quiet_mode)" off
+
 echo "quiet: shipped patterns"
 PAT="$ROOT/module/patterns/reengagement.txt"
 ok "pattern file exists" "$([ -f "$PAT" ] && echo yes)" yes

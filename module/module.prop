@@ -1,7 +1,7 @@
 id=lune_bridge
 name=Lune Bridge
-version=v2.0.3
-versionCode=20003
+version=v2.0.4
+versionCode=20004
 author=uraniam9
 description=Warmer, darker, calmer screens. Candlelight to 1700K, dimming below the panel minimum, flicker-safe mode for PWM eye strain, and Quiet Field to stop apps waking you. Companion to SonoLune.
 updateJson=https://github.com/uraniam9/lune-bridge/raw/main/update.json

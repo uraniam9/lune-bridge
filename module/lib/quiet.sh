@@ -459,6 +459,41 @@ quiet_override_clear() {
     kv_set "$QUIET_STATE" override_sched ""
 }
 
+# ---------------------------------------------------------------------------
+# Changing the schedule keeps a manual "quiet now" (2.0.4)
+#
+# Setting quiet hours applied the new schedule at once (daytime: off), and
+# clearing them always left quiet mode - whatever had turned it on. From
+# SonoLune that read as its "Every night" switch also switching off "Quiet
+# now". A quiet you turned on by hand now survives either change: kept as an
+# override against the new schedule until its next edge, the rule a manual
+# tap already follows. Quiet that the schedule itself turned on still ends
+# when the schedule is cleared.
+# ---------------------------------------------------------------------------
+quiet_manual_on() {
+    [ "$(quiet_mode)" = "on" ] || return 1
+    [ -z "$(qconf_get window)" ] && return 0
+    [ "$(kv_get "$QUIET_STATE" override "")" = "on" ]
+}
+
+quiet_window_set() {
+    # quiet_window_set <HHMM-HHMM> - validated by the caller
+    _keep=no
+    quiet_manual_on && _keep=yes
+    qconf_set window "$1"
+    quiet_override_clear
+    [ "$_keep" = yes ] && quiet_override_set on
+    quiet_tick
+}
+
+quiet_window_clear() {
+    _keep=no
+    quiet_manual_on && _keep=yes
+    qconf_set window ""
+    quiet_override_clear
+    [ "$_keep" = yes ] || quiet_leave
+}
+
 quiet_tick() {
     _window=$(qconf_get window)
     if [ -z "$_window" ]; then

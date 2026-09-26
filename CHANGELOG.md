@@ -1,3 +1,73 @@
+## 2.0.4
+
+**Nothing about what the module does to your display has changed.** This
+release is the panel and the docs, and all of it is about using the module
+alongside SonoLune.
+
+**While SonoLune is in charge of your display, the panel no longer pretends you
+can set it here.** With *Let SonoLune use it* switched on in SonoLune, the app
+decides warmth and light level. It sets them again whenever its own light
+changes, and every time you open it. The panel still let you drag both sliders,
+and SonoLune then put its own values back, which looks exactly like a broken
+slider. The Light level, Warmth and Flicker-safe cards are now greyed out while
+SonoLune is in charge (it sets flicker-safe mode too, from its Lune Bridge
+page), and tapping one tells you where that setting lives. Quiet Field stays
+yours to change here: SonoLune only writes it when you tap its own Quiet Field
+card, both edit the same list and schedule, and a note on the tab says so.
+
+**The banner says what is actually happening.** It used to show in the red
+warning style, as if something had gone wrong, and it sent you to *Labs >
+Screen & rendering* in SonoLune, where there is no such switch. It is now a
+plain status line, *Driven by SonoLune*, that names the right place, *Let
+SonoLune use it* on SonoLune's Lune Bridge page, and it has *Open Light in
+SonoLune* and *Open Lune Bridge in SonoLune* buttons.
+
+**Opening SonoLune from the panel lands on the right card.** Its *Open Labs*
+button opened SonoLune's Labs page, which SonoLune closes to anyone who does
+not have Labs, even though the Lune Bridge card on it is open to everyone. It
+is now *Open Lune Bridge in SonoLune*, and it opens SonoLune's own Lune Bridge
+page, which is open to everyone, with its switch highlighted.
+
+**The panel says when SonoLune could drive it.** With SonoLune on the phone and
+its switch off, the top of the panel now says so, with a button straight to
+that switch and an x that closes it for good.
+
+**The panel notices when you switch SonoLune off.** It checked who was in
+charge once, when it opened. Turn SonoLune's switch off, come back to the
+panel, and it went on showing the old banner and the old values until you
+closed it completely. It now checks again when it comes back into view, Quiet
+Field included - SonoLune's Lune Bridge page edits the same list, the same
+"quiet now" and the same schedule.
+
+**Changing quiet hours no longer switches off a quiet you turned on yourself.**
+Setting quiet hours applied the new schedule straight away, so in the daytime
+it switched a hand-made quiet off, and clearing them always did. A quiet you
+turned on by hand now lasts until the schedule's next start or end; quiet that
+the schedule itself turned on still ends when you clear it.
+
+**The flicker knee's advice pointed the wrong way.** It said to lower the knee
+until flicker stops, but lowering it is what lets flicker back in: the
+backlight is held at the knee. It now says to lower it for a darker minimum
+until flicker starts to show, then go back up a step. The testing guide said
+the same, and is fixed too.
+
+**The docs point to the right switch.** The README and the testing guide sent
+people to *Labs > Screen & rendering* too. Both now point to SonoLune's Lune
+Bridge page. The README also no longer claims nothing at all is drawn over your
+screen: warmth and dimming are not, but SonoLune's other effects, like grain
+and veil, still are.
+
+**SonoLune 2.4.4 can find this module.** Earlier versions looked for it in a
+folder Android keeps closed to apps, so the Lune Bridge switch never appeared,
+even with the module installed and working. If you never saw that switch, that
+is why: update SonoLune. Its Lune Bridge page also has an *Add to home screen*
+button now, for an icon that opens straight to it.
+
+**Integrated with SonoLune, start to finish.** Warmth, dimming, Quiet Field -
+this whole release is about making that pairing honest. If you found your way
+here from the app and want to know what else it does, it's at
+[sonolune.app](https://sonolune.app). Enjoy.
+
 ## 2.0.3
 
 **The panel now tells you when there is a newer release.** 2.0.2 fixed a bug

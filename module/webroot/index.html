@@ -73,6 +73,11 @@
      rather than being disabled. A disabled control swallows the event and the
      explanation never fires, which reads as broken rather than gated. */
   #kneeGroup.dimmed input, #kneeGroup.dimmed button { pointer-events: none; }
+  /* The same gating for the two cards SonoLune drives: greyed, and a tap says
+     why instead of moving a value SonoLune will put back. */
+  #levelCard.dimmed input, #levelCard.dimmed button,
+  #warmCard.dimmed input, #warmCard.dimmed button,
+  #flickerCard.dimmed input, #flickerCard.dimmed button { pointer-events: none; }
   /* The hold gesture must not be interpreted as a scroll. */
   button.hold { touch-action: none; user-select: none; }
   .btns { display: flex; gap: 8px; flex-wrap: wrap; }
@@ -84,6 +89,11 @@
   }
   .banner.bad { border-color: #5c3a33; background: #2a1c19; color: #f0c4ba; }
   .banner.ok  { border-color: #3d4a2e; background: #1e2418; color: #cfe0b8; }
+  /* An offer, not a status: SonoLune is here and could drive the display. */
+  .banner.invite { border-color: #4a4230; background: #221e16; color: #eadcc0;
+                   position: relative; padding-right: 40px; }
+  .banner .x { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px;
+               padding: 0; border-radius: 50%; line-height: 28px; font-size: 18px; }
   .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
   .pill.yes { color: var(--ok); border-color: #3d4a2e; }
   .pill.no  { color: var(--bad); border-color: #5c3a33; }
@@ -225,7 +235,7 @@
   <div id="ownership" class="banner hidden"></div>
   <div id="banner" class="banner hidden"></div>
 
-  <div class="card">
+  <div class="card" id="levelCard">
     <h2>Light level</h2>
     <div class="row"><span class="k">Target</span><span class="val" id="levelVal">—</span></div>
     <input type="range" id="level" min="1" max="100" value="50" disabled>
@@ -243,7 +253,7 @@
     <div class="note" id="levelNote"></div>
   </div>
 
-  <div class="card">
+  <div class="card" id="warmCard">
     <h2>Warmth</h2>
     <div class="row"><span class="k">Colour temperature</span><span class="val" id="warmVal">off</span></div>
     <!-- step 1, not 25: with a coarse step the slider cannot reach 4082 at all,
@@ -259,7 +269,7 @@
     </div>
   </div>
 
-  <div class="card">
+  <div class="card" id="flickerCard">
     <h2>Flicker-safe mode</h2>
     <div class="btns"><button id="flicker">Off</button></div>
     <div class="note">
@@ -283,8 +293,9 @@
       </div>
     </div>
     <div class="note">
-      Lower this until flicker stops being visible. The default is a guess, not
-      a measurement — every panel is different.
+      Lower this for a darker minimum until flicker starts to show, then go back
+      up a step. The default is a guess, not a measurement — every panel is
+      different.
     </div>
     <div class="note" id="kneeFloor"></div>
   </div>
@@ -323,10 +334,10 @@
   <div class="card" id="labsCard">
     <h2>In SonoLune</h2>
     <div class="note" style="margin-top:0">
-      <strong>Labs &rsaquo; Screen &amp; rendering</strong> is where the app
-      hands warmth and dimming to this module instead of drawing a matte over
-      your screen. The switch only appears there once the module is installed,
-      which it now is.
+      <strong>Its Lune Bridge page</strong> is where the app hands warmth
+      and dimming to this module instead of drawing a matte over your screen.
+      Its <em>Let SonoLune use it</em> switch only appears once the module is
+      installed, which it now is.
     </div>
     <div class="btns" id="labsLinks" style="margin-top:12px"></div>
   </div>
@@ -336,6 +347,13 @@
 <div id="paneQuiet" class="hidden">
 
   <div id="qbanner" class="banner hidden"></div>
+  <!-- Shown while SonoLune is driving. Quiet Field is NOT greyed like the
+       display cards: SonoLune never writes it on its own, only when you tap
+       its Lune Bridge page, and both edit the same list and schedule here. -->
+  <div class="note hidden" id="qsono" style="margin: -4px 2px 12px">
+    SonoLune's Lune Bridge page shows this same list and schedule. A change
+    made in either place is the same change.
+  </div>
 
   <div class="card">
     <h2>Quiet hours</h2>
@@ -653,16 +671,76 @@ async function detectSonoLune() {
 // pipeline rewrites them whenever its own state changes, so a value set here
 // survives only until then. Saying so beats letting someone think the slider
 // is broken.
+// SonoLune is on the phone but not driving: say it could, once, with a way to
+// get there and an x that ends it for good. The owner's rule for both sides
+// (2.0.4): each shows the other while they are not connected, until closed.
+let inviteClosedNow = false;
+
+function inviteClosed() {
+  if (inviteClosedNow) return true;
+  try { return localStorage.getItem('lune_sono_invite_closed') === '1'; } catch (_) {}
+  return false;
+}
+
 function renderOwnership() {
   const el = $('ownership');
+  applyDrivenGate();
   if (!el) return;
-  if (!sonoluneDriving) { el.classList.add('hidden'); return; }
-  el.className = 'banner bad';
-  el.innerHTML = 'SonoLune is set to drive the display. Warmth and light level '
-    + 'here will be overwritten the next time its light field changes. Turn '
-    + '<em>Lune Bridge</em> off in SonoLune → Labs → Screen &amp; rendering '
-    + 'to control it from here instead.';
+  if (!sonoluneDriving) {
+    if (sonoluneInstalled && !inviteClosed()) {
+      el.className = 'banner invite';
+      el.innerHTML = '<button class="x" data-invite-close="1" '
+        + 'aria-label="Do not show again">×</button>'
+        + '<strong>SonoLune is on this phone.</strong> It can set warmth and '
+        + 'light level for you from its Light suite, alongside everything else '
+        + 'it draws.'
+        + '<div class="btns" style="margin-top:10px">'
+        + '<button data-route="/lune">Open Lune Bridge in SonoLune</button>'
+        + '</div>';
+      el.classList.remove('hidden');
+      return;
+    }
+    el.classList.add('hidden');
+    return;
+  }
+  // Status, not a fault: this is the integration working as intended. Was
+  // 'banner bad' and named a Labs section that does not hold the switch.
+  el.className = 'banner ok';
+  el.innerHTML = '<strong>Driven by SonoLune.</strong> Light level and warmth '
+    + 'follow its Light suite, and flicker-safe mode its Lune Bridge page, so '
+    + 'they are set there while it is in charge. '
+    + 'To set them here instead, turn off <em>Let SonoLune use it</em> on '
+    + 'the Lune Bridge page in SonoLune.'
+    + '<div class="btns" style="margin-top:10px">'
+    + '<button data-route="/light">Open Light in SonoLune</button>'
+    // Flicker-safe lives on SonoLune's Lune Bridge page (/lune), not in Light.
+    // That page is open to everyone, supporter or not.
+    + '<button data-route="/lune">Open Lune Bridge in SonoLune</button></div>';
   el.classList.remove('hidden');
+}
+
+// While SonoLune drives, its light pipeline rewrites level and warmth on every
+// change and whenever the app is opened, so these two cards used to accept a
+// value that was about to be taken back - a control that looks like it works
+// and does not. Greyed like the knee, and a tap explains instead. Called from
+// renderOwnership and after every syncDisplay, because syncDisplay re-enables
+// the inputs each time it runs.
+function applyDrivenGate() {
+  // Flicker too (2.0.4): SonoLune pushes its own flicker-safe switch every
+  // time it starts, so a change made here would not last either.
+  ['levelCard', 'warmCard', 'flickerCard'].forEach((id) => {
+    const card = $(id);
+    if (!card) return;
+    card.classList.toggle('dimmed', sonoluneDriving);
+    card.querySelectorAll('input, button').forEach((c) => {
+      if (!sonoluneDriving && c.closest('#kneeGroup')) return;  // gateKnee's
+      c.setAttribute('aria-disabled', String(sonoluneDriving));
+      c.tabIndex = sonoluneDriving ? -1 : 0;
+    });
+  });
+  if (!sonoluneDriving) gateKnee(conf.flicker === 'on');
+  const q = $('qsono');
+  if (q) q.classList.toggle('hidden', !sonoluneDriving);
 }
 
 function renderAbout() {
@@ -678,8 +756,11 @@ function renderAbout() {
     .join('');
 
   // Installed: open the matching screen. Not installed: the Play listing.
+  // /lune: SonoLune's Lune Bridge page (from 2.4.4), open to everybody; it
+  // scrolls to the switch and lights it. Older builds used /labs?focus=lune,
+  // which 2.4.4 still redirects there.
   $('labsLinks').innerHTML = sonoluneInstalled
-    ? '<button data-route="/labs">Open Labs</button>'
+    ? '<button data-route="/lune">Open Lune Bridge in SonoLune</button>'
     : (LINKS.sonolune ? '<button data-url="' + LINKS.sonolune + '">Get SonoLune</button>' : '');
 
   $('reportLinks').innerHTML = [
@@ -863,9 +944,14 @@ function syncDisplay() {
   $('flicker').classList.toggle('on', on);
 
   ['level', 'warm'].forEach((id) => { $(id).disabled = false; });
+  gateKnee(on);
+  // Last: it may grey what the lines above just re-enabled.
+  applyDrivenGate();
+}
 
-  // The knee is a child of flicker-safe mode: with the mode off it changes
-  // nothing, so leaving it live would be a control that silently does nothing.
+// The knee is a child of flicker-safe mode: with the mode off it changes
+// nothing, so leaving it live would be a control that silently does nothing.
+function gateKnee(on) {
   $('kneeGroup').classList.toggle('dimmed', !on);
   // Cleared because the markup ships it disabled for the moment before this
   // runs. From here the dimmed class does the gating, via pointer-events.
@@ -933,6 +1019,21 @@ $('warmOff').addEventListener('click', async () => {
 document.querySelectorAll('[data-warm]').forEach((btn) => {
   btn.addEventListener('click', async () => { await lune('warm ' + btn.dataset.warm); await load(); });
 });
+['levelCard', 'warmCard'].forEach((id) => {
+  $(id).addEventListener('click', (e) => {
+    if (!sonoluneDriving) return;
+    e.stopPropagation();
+    toast('SonoLune sets this while it is in charge. Change it in its Light suite.');
+  }, true);
+});
+// Capture on the card runs before the knee group's own capture listener, so
+// while driven this is the one message, not "turn on flicker-safe mode first".
+$('flickerCard').addEventListener('click', (e) => {
+  if (!sonoluneDriving) return;
+  e.stopPropagation();
+  toast('SonoLune sets flicker-safe mode while it is in charge. Open Lune Bridge in SonoLune, above.');
+}, true);
+
 $('kneeGroup').addEventListener('click', (e) => {
   if (conf.flicker !== 'on') {
     e.stopPropagation();
@@ -1260,6 +1361,12 @@ document.addEventListener('click', async (e) => {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
   const d = t.dataset;
+  if (d.inviteClose) {
+    inviteClosedNow = true;
+    try { localStorage.setItem('lune_sono_invite_closed', '1'); } catch (_) {}
+    renderOwnership();
+    return;
+  }
   if (d.add) {
     await quiet('add ' + d.add);
     $('appSearch').value = ''; $('appResults').innerHTML = '';
@@ -1397,6 +1504,33 @@ $('watch').addEventListener('click', async () => {
 });
 $('qrefresh').addEventListener('click', async () => { await quiet('probe'); await loadQuiet(); });
 $('qreset').addEventListener('click', async () => { await quiet('reset'); await loadQuiet(); });
+
+// Seen again: back from SonoLune, from Recents, or after the screen was off.
+// Everything below is read once, at startup - so the banner went on saying
+// SonoLune was driving after its switch had been turned off, and the sliders
+// went on showing values SonoLune had since replaced. Read both again. Two
+// events, because root managers' WebViews do not all report the same one; the
+// flag keeps a pair of them from loading twice.
+let recheckBusy = false;
+async function recheckSonoLune() {
+  if (recheckBusy) return;
+  recheckBusy = true;
+  try {
+    await detectSonoLune();
+    renderOwnership();
+    await load();
+    // Quiet Field too (2.0.4): SonoLune's Lune Bridge page edits the same list, the same
+    // "quiet now" and the same schedule, so coming back from it must show
+    // what it changed - it read as out of sync until the panel was reopened.
+    await loadQuiet();
+  } finally {
+    recheckBusy = false;
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') recheckSonoLune();
+});
+window.addEventListener('focus', () => { recheckSonoLune(); });
 
 (async () => {
   await detectSonoLune();

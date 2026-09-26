@@ -55,7 +55,7 @@ floor only.
 ## 2. Copy the module across
 
 ```bash
-adb push dist/LuneBridge-v2.0.3.zip /sdcard/Download/
+adb push dist/LuneBridge-v2.0.4.zip /sdcard/Download/
 ```
 
 ## 3. Flash it
@@ -67,10 +67,10 @@ Command line, if you prefer:
 
 ```bash
 # Magisk
-adb shell su -c "magisk --install-module /sdcard/Download/LuneBridge-v2.0.3.zip"
+adb shell su -c "magisk --install-module /sdcard/Download/LuneBridge-v2.0.4.zip"
 
 # KernelSU
-adb shell su -c "ksud module install /sdcard/Download/LuneBridge-v2.0.3.zip"
+adb shell su -c "ksud module install /sdcard/Download/LuneBridge-v2.0.4.zip"
 ```
 
 Read the install output. It aborts on Android below 9 and warns below 12.
@@ -206,8 +206,9 @@ adb shell su -c "lunectl knee 40"
 adb shell su -c "lunectl knee 35"
 ```
 
-Lower it until flicker stops, then back up to the last comfortable value —
-holding the backlight higher than needed costs contrast for nothing.
+Lower it until flicker starts to show, then go back up to the last value that
+looked steady — holding the backlight higher than needed costs contrast for
+nothing.
 
 Once set, it is recorded as `measured` and no shipped profile will override it.
 See [DEVICE-PROFILES.md](DEVICE-PROFILES.md) for contributing it back.
@@ -317,8 +318,9 @@ exactly. They disagreed once, because the UI rounded where the shell truncates.
 
 ## 10. Test the app integration
 
-In SonoLune: **Labs → Screen & rendering**. A **Lune Bridge** switch
-appears only if the module is installed.
+In SonoLune: the **Lune Bridge** page (the Light room's Lune line leads there).
+It is open to everyone; its
+**Let SonoLune use it** switch appears only once the module is installed.
 
 Turn it on. Your superuser app will prompt — grant it. The subtitle then reports
 what the probe found, including the honest case where a ROM is still clamping.
