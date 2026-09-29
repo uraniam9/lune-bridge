@@ -55,11 +55,19 @@ kv_get() {
 
 kv_set() {
     # kv_set <file> <key> <value>
+    #
+    # The temp file is per process. It used to be one shared "$1.new", which is
+    # fine until two callers overlap - a slider that jumps fires several
+    # lunectl calls at once - and then one call's mv finds the file already
+    # gone, or both append to it and the store ends up with two values for a
+    # key. lock_take below keeps lunectl's own writers apart; this keeps a
+    # writer that is not behind the lock from corrupting the file anyway.
     mkdir -p "$(dirname "$1")"
     [ -f "$1" ] || : > "$1"
-    grep -v "^$2=" "$1" > "$1.new" 2>/dev/null
-    echo "$2=$3" >> "$1.new"
-    mv "$1.new" "$1"
+    _tmp="$1.new.$$"
+    grep -v "^$2=" "$1" > "$_tmp" 2>/dev/null
+    echo "$2=$3" >> "$_tmp"
+    mv "$_tmp" "$1"
 }
 
 conf_get() { kv_get "$LUNE_CONF" "$1" "${2:-}"; }
@@ -236,4 +244,59 @@ require_root() {
 ensure_dirs() {
     mkdir -p "$LUNE_DIR" 2>/dev/null
     chmod 700 "$LUNE_DIR" 2>/dev/null
+}
+
+# ---------------------------------------------------------------------------
+# Serialising writers
+#
+# Every lunectl command that changes the display is a few `settings put` calls
+# followed by a write to the config, and each `settings` call is a process of
+# its own. Two of them overlapping interleave: one call's temperature lands
+# between another's temperature and its "activated", and the config ends up
+# recording a value the framework was never left holding. That is what a
+# slider dragged fast to an end produces when the caller does not wait for
+# each call to finish, so the calls take turns instead.
+#
+# mkdir is the lock because it is atomic on every filesystem this runs on and
+# needs nothing that a stock Android might not ship.
+#
+# It must never be the thing that stops someone getting their screen back.
+# Reset is the way out of a display too dark to read, so a lock left behind by
+# a call that was killed, or held by one that is stuck, is stepped over rather
+# than waited on: a dead holder is taken over at once, and a live one is given
+# about five seconds before we carry on without the lock, as before it
+# existed. Worst case is the old behaviour, never a hang.
+# ---------------------------------------------------------------------------
+
+LUNE_LOCK=$LUNE_DIR/lock.d
+LUNE_LOCK_TRIES=${LUNE_LOCK_TRIES:-100}   # polls of 50ms
+_LUNE_LOCK_HELD=
+
+lock_take() {
+    _lt=0
+    while ! mkdir "$LUNE_LOCK" 2>/dev/null; do
+        _holder=$(cat "$LUNE_LOCK/pid" 2>/dev/null)
+        if [ -n "$_holder" ] && ! kill -0 "$_holder" 2>/dev/null; then
+            rm -rf "$LUNE_LOCK"
+            continue
+        fi
+        _lt=$(( _lt + 1 ))
+        if [ "$_lt" -ge "$LUNE_LOCK_TRIES" ]; then
+            log "lock: still held by ${_holder:-unknown} after waiting - carrying on without it"
+            return 0
+        fi
+        # Not every toybox sleeps for a fraction of a second; a whole second
+        # is a slower poll, not a wrong one.
+        sleep 0.05 2>/dev/null || sleep 1
+    done
+    echo $$ > "$LUNE_LOCK/pid"
+    _LUNE_LOCK_HELD=1
+}
+
+lock_drop() {
+    # Only what we took. Carrying on without the lock above must not delete
+    # the one somebody else is still holding.
+    [ -n "$_LUNE_LOCK_HELD" ] || return 0
+    rm -rf "$LUNE_LOCK"
+    _LUNE_LOCK_HELD=
 }

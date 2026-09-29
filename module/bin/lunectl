@@ -107,8 +107,17 @@ set_warm() {
         [ "$_floor" -gt 1700 ] && echo "      run 'lunectl status' - the overlay may not be in effect"
     fi
     have night_display || die "this device does not expose Night Light"
-    setting_put secure night_display_color_temperature "$_k"
-    setting_put secure night_display_activated 1
+
+    # Say so if the framework did not take it. Recording the temperature as
+    # applied when the write failed leaves the config, and everything that
+    # reads it, reporting a warmth the screen is not showing. Return rather
+    # than die: `apply` runs this at boot and must go on to the rest.
+    if ! setting_put secure night_display_color_temperature "$_k" \
+       || ! setting_put secure night_display_activated 1; then
+        echo "lune: the framework did not accept ${_k}K, Night Light was not switched on" >&2
+        log "ERROR warm $_k: settings put failed"
+        return 1
+    fi
     conf_set warm "$_k"
 }
 
@@ -350,6 +359,15 @@ cmd_reset() {
 
 require_root
 ensure_dirs
+
+# Everything that writes display state takes turns; reading it does not need to.
+# The trap covers die() as well as a normal finish.
+case "$1" in
+    level|warm|dim|flicker|knee|backlight|probe|apply|reset)
+        trap lock_drop EXIT
+        lock_take
+        ;;
+esac
 
 case "$1" in
     status|'')

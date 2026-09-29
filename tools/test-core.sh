@@ -121,6 +121,59 @@ ok "no duplicate lines"             "$(grep -c '^alpha=' "$LUNE_DIR/t")" 1
 kv_set "$LUNE_DIR/t" path "/sys/class/backlight/panel0-backlight"
 ok "values with slashes survive"    "$(kv_get "$LUNE_DIR/t" path)" "/sys/class/backlight/panel0-backlight"
 
+echo "key=value store under concurrent writers"
+# A slider that jumps fires overlapping lunectl calls. They used to share one
+# temp file, so one call's mv found it already gone, and the config could end
+# with several values for one key - or one that disagreed with what the
+# framework was actually given.
+rm -f "$LUNE_DIR/c" "$LUNE_DIR/c.err"
+# Real processes, as lunectl calls are: a backgrounded subshell shares its
+# parent's $$, so it would not exercise the per-process temp file at all.
+for n in 1 2 3 4 5 6 7 8; do
+    bash -c '. "$1/lib/core.sh"; kv_set "$2" warm "$3"' _ "$ROOT/module" "$LUNE_DIR/c" "$((1700 + n))" \
+        2>>"$LUNE_DIR/c.err" &
+done
+wait
+ok "one value per key"              "$(grep -c '^warm=' "$LUNE_DIR/c")" 1
+ok "no writer trips over another"   "$(wc -c < "$LUNE_DIR/c.err" | tr -d ' ')" 0
+ok "no temp files left behind"      "$(ls "$LUNE_DIR" | grep -c '^c\.new')" 0
+
+echo "lock"
+LUNE_LOCK="$LUNE_DIR/lock.d"
+rm -rf "$LUNE_LOCK"
+( lock_take; cat "$LUNE_LOCK/pid" > "$LUNE_DIR/holder"; lock_drop )
+ok "taking records the holder"      "$(cat "$LUNE_DIR/holder")" "$$"
+ok "dropping removes the lock"      "$([ -e "$LUNE_LOCK" ] && echo held || echo free)" free
+
+# Two writers that each read, sleep, then write would lose one update unless
+# the lock really excludes: the counter only reaches 6 if they never overlap.
+echo 0 > "$LUNE_DIR/n"
+for i in 1 2 3 4 5 6; do
+    ( lock_take; v=$(cat "$LUNE_DIR/n"); sleep 0.05; echo $((v+1)) > "$LUNE_DIR/n"; lock_drop ) &
+done
+wait
+ok "holders never overlap"          "$(cat "$LUNE_DIR/n")" 6
+
+# A holder that died must not wedge the panel. Reset is the way back from a
+# screen too dark to read, so a stale lock cannot be allowed to outlive its owner.
+mkdir "$LUNE_LOCK"; echo 999999 > "$LUNE_LOCK/pid"
+start=$(date +%s)
+( lock_take; lock_drop )
+ok "a dead holder is taken over"    "$(( $(date +%s) - start < 2 ))" 1
+ok "and the lock is released after" "$([ -e "$LUNE_LOCK" ] && echo held || echo free)" free
+
+# A holder that is alive but stuck must not wedge it either: wait, then go on.
+sleep 30 & stuck=$!
+mkdir "$LUNE_LOCK"; echo "$stuck" > "$LUNE_LOCK/pid"
+start=$(date +%s)
+( LUNE_LOCK_TRIES=6 lock_take; lock_drop )
+elapsed=$(( $(date +%s) - start ))
+still=$([ -e "$LUNE_LOCK" ] && echo held || echo free)
+kill "$stuck" 2>/dev/null; wait "$stuck" 2>/dev/null
+rm -rf "$LUNE_LOCK"
+ok "a stuck holder is waited out, not forever" "$(( elapsed < 5 ))" 1
+ok "and its lock is not deleted from under it" "$still" held
+
 truthy() {
     # truthy <label> <command...> - passes when the command succeeds
     local label="$1"; shift
