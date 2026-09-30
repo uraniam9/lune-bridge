@@ -923,16 +923,78 @@ function setLevelNote(v) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Warmth: one call at a time, and the newest value last.
+//
+// The slider used to wait for the finger to rest a quarter of a second, then
+// start a lunectl call and re-read the config when it came back, and the
+// presets started theirs straight away. Nothing stopped a second call starting
+// while the first was still running. A drag that paused, or a preset tapped
+// straight after a drag, put two in flight at once, and they could finish in
+// either order: the screen could end on the older value, and the re-read that
+// followed moved the thumb back under a finger that was still on it.
+//
+// Now asking for a value never starts a second call. It replaces whatever was
+// waiting and goes as soon as the call ahead of it is done, so however fast
+// the thumb moves, one call runs, at most one waits, and the last value asked
+// for is the last one sent. That also lets the screen follow the thumb while
+// it moves, not only once it stops. The config is read back once nothing is
+// running, waiting, or under a finger.
+// ---------------------------------------------------------------------------
+const warmth = {
+  busy: false,      // a lunectl warm call is running
+  next: null,       // the newest value asked for since it started
+  dragging: false,  // a finger is on the slider
+};
+
+function warmIdle() {
+  return !warmth.busy && warmth.next === null && !warmth.dragging;
+}
+
+function requestWarm(v) {
+  warmth.next = String(v);
+  if (!warmth.busy) sendWarm();
+}
+
+async function sendWarm() {
+  warmth.busy = true;
+  try {
+    while (warmth.next !== null) {
+      const v = warmth.next;
+      warmth.next = null;
+      const r = await lune('warm ' + v);
+      // With a newer value already waiting, a failure is about one the thumb
+      // has moved past, and the next call will say so if it fails too.
+      if (r.errno !== 0 && warmth.next === null) {
+        toast((r.stderr || r.stdout || 'Warmth was not applied.').trim());
+      }
+    }
+  } finally {
+    warmth.busy = false;
+  }
+  settleWarm();
+}
+
+// Show what the module holds, not what was asked for, once warmth has settled.
+function settleWarm() {
+  if (warmIdle()) load();
+}
+
 function syncDisplay() {
   const level = parseInt(conf.level || '50', 10);
   $('level').value = level;
   $('levelVal').textContent = level + '%';
   setLevelNote(level);
 
-  const warm = conf.warm && conf.warm !== 'off' ? parseInt(conf.warm, 10) : null;
   $('warm').min = caps.warm_floor || 2596;
-  if (warm) { $('warm').value = warm; $('warmVal').textContent = warm + 'K'; }
-  else { $('warmVal').textContent = 'off'; }
+  // The config read above can be older than a value still on its way, and
+  // writing it back while a finger is on the thumb is what used to pull the
+  // thumb out from under a drag. Warmth syncs only once it has settled.
+  if (warmIdle()) {
+    const warm = conf.warm && conf.warm !== 'off' ? parseInt(conf.warm, 10) : null;
+    if (warm) { $('warm').value = warm; $('warmVal').textContent = warm + 'K'; }
+    else { $('warmVal').textContent = 'off'; }
+  }
 
   const knee = parseInt(caps.pwm_knee || '50', 10);
   $('knee').value = knee;
@@ -979,7 +1041,6 @@ async function load() {
 }
 
 const applyLevel = debounce(async (v) => { await lune('level ' + v); await load(); }, 250);
-const applyWarm = debounce(async (v) => { await lune('warm ' + v); await load(); }, 250);
 const applyKnee = debounce(async (v) => { await lune('knee ' + v); await load(); }, 350);
 
 $('level').addEventListener('input', (e) => {
@@ -987,10 +1048,24 @@ $('level').addEventListener('input', (e) => {
   setLevelNote(parseInt(e.target.value, 10));
   applyLevel(e.target.value);
 });
+// Every value the thumb passes through goes to requestWarm, which keeps only
+// the newest, and the last input is the value the thumb was let go at, so
+// release itself has nothing left to send: it only lets the panel settle.
+$('warm').addEventListener('pointerdown', () => { warmth.dragging = true; });
 $('warm').addEventListener('input', (e) => {
   $('warmVal').textContent = e.target.value + 'K';
-  applyWarm(e.target.value);
+  requestWarm(e.target.value);
 });
+function endWarmDrag() {
+  if (!warmth.dragging) return;
+  warmth.dragging = false;
+  settleWarm();
+}
+// Change is the usual end. The two document listeners cover a finger that
+// lifts off the thumb without moving it, where change never fires.
+$('warm').addEventListener('change', endWarmDrag);
+document.addEventListener('pointerup', endWarmDrag);
+document.addEventListener('pointercancel', endWarmDrag);
 $('knee').addEventListener('input', (e) => {
   if (conf.flicker !== 'on') return;   // gated above; this is the backstop
   $('kneeVal').textContent = e.target.value + '%';
@@ -1009,15 +1084,23 @@ document.querySelectorAll('[data-level]').forEach((btn) => {
     await load();
   });
 });
-$('warmOff').addEventListener('click', async () => {
+$('warmOff').addEventListener('click', () => {
   // Tapping Off when it is already off used to do a round trip and change
-  // nothing on screen, which looks like the button is dead.
-  if (!conf.warm || conf.warm === 'off') { toast('Warmth is already off.'); return; }
-  await lune('warm off');
-  await load();
+  // nothing on screen, which looks like the button is dead. The config only
+  // says so reliably when nothing else is on its way.
+  if (warmIdle() && (!conf.warm || conf.warm === 'off')) { toast('Warmth is already off.'); return; }
+  $('warmVal').textContent = 'off';
+  requestWarm('off');
 });
+// Presets go through the same queue as the slider, so a tap straight after a
+// drag lands after it. The thumb moves at once: a call takes a moment, and a
+// thumb that stays put reads as a tap that did nothing.
 document.querySelectorAll('[data-warm]').forEach((btn) => {
-  btn.addEventListener('click', async () => { await lune('warm ' + btn.dataset.warm); await load(); });
+  btn.addEventListener('click', () => {
+    $('warm').value = btn.dataset.warm;
+    $('warmVal').textContent = btn.dataset.warm + 'K';
+    requestWarm(btn.dataset.warm);
+  });
 });
 ['levelCard', 'warmCard'].forEach((id) => {
   $(id).addEventListener('click', (e) => {
