@@ -7,10 +7,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/uraniam9/lune-bridge/releases/latest"><img src="https://img.shields.io/github/v/release/uraniam9/lune-bridge?label=release&labelColor=241910&color=d3b184&style=flat-square" alt="Latest release"></a>
-  <a href="https://github.com/uraniam9/lune-bridge/releases"><img src="https://img.shields.io/github/downloads/uraniam9/lune-bridge/total?label=downloads&labelColor=241910&color=d3b184&style=flat-square" alt="Downloads"></a>
-  <img src="https://img.shields.io/badge/Magisk_%C2%B7_KernelSU_%C2%B7_APatch-root_module-d3b184?labelColor=241910&style=flat-square" alt="Magisk, KernelSU and APatch">
-  <img src="https://img.shields.io/badge/Android-9%2B-d3b184?logo=android&logoColor=d3b184&labelColor=241910&style=flat-square" alt="Android 9+">
+  <a href="https://github.com/uraniam9/lune-bridge/releases/latest"><img src="https://img.shields.io/github/v/release/uraniam9/lune-bridge?label=release&labelColor=241910&color=d3b184&style=flat-square" alt="Latest release"></a>&nbsp;&nbsp;
+  <a href="https://github.com/uraniam9/lune-bridge/releases"><img src="https://img.shields.io/github/downloads/uraniam9/lune-bridge/total?label=downloads&labelColor=241910&color=d3b184&style=flat-square" alt="Downloads"></a>&nbsp;&nbsp;
+  <a href="#install"><img src="https://img.shields.io/badge/Magisk_%C2%B7_KernelSU_%C2%B7_APatch-root_module-d3b184?labelColor=241910&style=flat-square" alt="Magisk, KernelSU and APatch"></a>&nbsp;&nbsp;
+  <a href="#install"><img src="https://img.shields.io/badge/Android-9%2B-d3b184?logo=android&logoColor=d3b184&labelColor=241910&style=flat-square" alt="Android 9+"></a>&nbsp;&nbsp;
   <a href="LICENSE"><img src="https://img.shields.io/badge/licence-GPL--3.0-d3b184?labelColor=241910&style=flat-square" alt="Licence: GPL-3.0"></a>
 </p>
 
