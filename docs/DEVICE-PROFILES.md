@@ -20,9 +20,9 @@ Lune ships with a default of 50% and labels it a guess. `lunectl status` says
    peripheral vision catches flicker far better than looking straight at it.
    Some people see banding on a phone camera pointed at the screen.
 4. Adjust with `su -c lunectl knee 40`, `knee 35`, and so on. Lower it until
-   the flicker stops.
-5. Go a little lower still, then back up to the last comfortable value —
-   holding the backlight higher than necessary costs contrast for nothing.
+   flicker starts to show.
+5. Go back up to the last value that looked steady — holding the backlight
+   higher than necessary costs contrast for nothing.
 
 A knee you set this way is recorded as `measured` and is never overwritten by
 a shipped profile.

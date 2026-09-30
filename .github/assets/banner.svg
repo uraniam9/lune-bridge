@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" role="img" aria-label="Lune Bridge">
+  <defs>
+    <radialGradient id="bg" cx="0.22" cy="0.5" r="0.95">
+      <stop offset="0" stop-color="#43301c"/><stop offset="0.55" stop-color="#241910"/><stop offset="1" stop-color="#140e09"/>
+    </radialGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffd9a0" stop-opacity="0.34"/><stop offset="1" stop-color="#ffd9a0" stop-opacity="0"/>
+    </radialGradient>
+    <mask id="cut"><rect width="1280" height="360" fill="#fff"/><circle cx="292" cy="146" r="92" fill="#000"/></mask>
+  </defs>
+  <rect width="1280" height="360" rx="24" fill="url(#bg)"/>
+  <circle cx="560" cy="64" r="1.6" fill="#f6e7cc" opacity="0.5"/><circle cx="700" cy="300" r="1.2" fill="#f6e7cc" opacity="0.35"/><circle cx="880" cy="52" r="1.4" fill="#f6e7cc" opacity="0.45"/><circle cx="1010" cy="286" r="1.8" fill="#f6e7cc" opacity="0.4"/><circle cx="1130" cy="90" r="1.2" fill="#f6e7cc" opacity="0.5"/><circle cx="1200" cy="230" r="1.5" fill="#f6e7cc" opacity="0.3"/><circle cx="640" cy="250" r="1" fill="#f6e7cc" opacity="0.3"/><circle cx="1060" cy="170" r="1" fill="#f6e7cc" opacity="0.25"/><circle cx="120" cy="60" r="1.3" fill="#f6e7cc" opacity="0.3"/><circle cx="90" cy="300" r="1.1" fill="#f6e7cc" opacity="0.25"/>
+  <circle cx="250" cy="180" r="190" fill="url(#glow)"/>
+  <circle cx="250" cy="182" r="98" fill="#fbf1de" mask="url(#cut)"/>
+  <text x="440" y="196" font-family="Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Noto Serif', serif" font-size="104" fill="#fbf1de" letter-spacing="1">Lune Bridge</text>
+  <text x="444" y="266" font-family="-apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="34" fill="#d3b184" letter-spacing="3">MAGISK · KERNELSU · APATCH</text>
+</svg>
