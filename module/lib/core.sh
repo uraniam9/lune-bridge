@@ -23,6 +23,10 @@ RBC_SLOPE_PERMILLE=956
 # measurement overrides it, because the real knee is panel-specific.
 DEFAULT_PWM_KNEE_PCT=50
 
+# Night Light's cool end, AOSP's config_nightDisplayColorTemperatureMax. The
+# overlay only moves the warm end; that one is probed per device (warm_floor).
+WARM_CEILING_K=4082
+
 umask 077
 
 log() {
@@ -122,6 +126,33 @@ setting_put() {
 }
 
 setting_delete() { settings delete "$1" "$2" >/dev/null 2>&1; }
+
+# Night Light's temperature, written so that Android actually shows it.
+#
+# Android's colour service keeps its own copy of the last temperature it was
+# given through its API - the system's own Night Light slider is what uses
+# it - and when the setting changes, it redraws only if the new value differs
+# from that copy. Nothing else updates the copy, and nothing clears it short
+# of a reboot. So once the system slider has been pulled to its warm end,
+# which is 1700K with this module's overlay in place, every later write of
+# exactly 1700K is stored and then ignored: the screen stays at whatever it
+# showed before. 1700K is also the warm end of every slider that drives this
+# module, so dragging straight to it could leave a far cooler screen than the
+# number said, and nudging back a step put it right. Measured on an A065 on
+# Android 16: after 3000K, a write of 1700K left the colour matrix at 3000K's.
+#
+# So write a neighbouring value first, then the one asked for. The copy is a
+# single value, so at most one of the two writes can be ignored: the screen
+# lands either exactly on the temperature asked for or 1K beside it, which no
+# eye can tell apart. The setting always ends on the value asked for, so what
+# Android stores, restores at boot and shows on its own slider is that value.
+night_light_put() {
+    # night_light_put <kelvin>, already clamped to this device's range
+    _nl_n=$(( $1 + 1 ))
+    [ "$_nl_n" -gt "$WARM_CEILING_K" ] && _nl_n=$(( $1 - 1 ))
+    setting_put secure night_display_color_temperature "$_nl_n" || return 1
+    setting_put secure night_display_color_temperature "$1"
+}
 
 # ---------------------------------------------------------------------------
 # Update check

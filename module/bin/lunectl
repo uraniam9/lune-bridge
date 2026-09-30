@@ -101,7 +101,7 @@ set_warm() {
     fi
     is_int "$1" || die "warm: expected a temperature in Kelvin, or 'off'"
     _floor=$(cap_get warm_floor 2596)
-    _k=$(clamp "$1" "$_floor" 4082)
+    _k=$(clamp "$1" "$_floor" "$WARM_CEILING_K")
     if [ "$_k" != "$1" ]; then
         echo "lune: clamped ${1}K to ${_k}K (this device's floor is ${_floor}K)"
         [ "$_floor" -gt 1700 ] && echo "      run 'lunectl status' - the overlay may not be in effect"
@@ -112,7 +112,7 @@ set_warm() {
     # applied when the write failed leaves the config, and everything that
     # reads it, reporting a warmth the screen is not showing. Return rather
     # than die: `apply` runs this at boot and must go on to the rest.
-    if ! setting_put secure night_display_color_temperature "$_k" \
+    if ! night_light_put "$_k" \
        || ! setting_put secure night_display_activated 1; then
         echo "lune: the framework did not accept ${_k}K, Night Light was not switched on" >&2
         log "ERROR warm $_k: settings put failed"

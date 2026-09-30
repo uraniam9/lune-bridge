@@ -361,6 +361,50 @@ setting_accepts secure reduce_bright_colors_level 95
 ok "clamped value reports no"  "$?" 1
 unset -f settings
 
+echo "warmth: the temperature Android holds on to"
+# Android's colour service redraws on a new temperature only when it differs
+# from the last one it was given through its own API, which is what the system
+# Night Light slider uses, and only that API ever changes its copy. With the
+# system slider left at its warm end, a plain write of 1700K was stored and
+# ignored, and the screen stayed wherever it was. Emulate exactly that: CACHED
+# is the service's copy, SHOWN is what reaches the screen, and a put that leaves
+# the stored value as it was notifies nobody, as in SettingsProvider.
+: > "$SETDB"
+CACHED=1700
+SHOWN=""
+settings() {
+    case "$1" in
+        get)    grep "^$2/$3=" "$SETDB" 2>/dev/null | tail -1 | cut -d= -f2- ;;
+        put)    [ "$(settings get "$2" "$3")" = "$4" ] && return 0
+                printf '%s/%s=%s\n' "$2" "$3" "$4" >> "$SETDB"
+                if [ "$3" = night_display_color_temperature ] && [ "$4" != "$CACHED" ]; then
+                    SHOWN=$4
+                fi ;;
+        delete) grep -v "^$2/$3=" "$SETDB" > "$SETDB.n" 2>/dev/null; mv "$SETDB.n" "$SETDB" ;;
+    esac
+}
+within1() { [ "$1" -ge $(( $2 - 1 )) ] && [ "$1" -le $(( $2 + 1 )) ] && echo yes || echo "no, $1"; }
+
+night_light_put 3000
+ok "an ordinary value lands exactly"         "$SHOWN" 3000
+night_light_put 1700
+ok "the held-on value still reaches the screen" "$(within1 "$SHOWN" 1700)" yes
+ok "and the setting says what was asked"     "$(setting_get secure night_display_color_temperature)" 1700
+night_light_put 1700
+ok "asking again keeps it there"             "$(within1 "$SHOWN" 1700)" yes
+night_light_put 1850
+ok "the next value lands exactly"            "$SHOWN" 1850
+# The cool end has no neighbour above it, so the step goes the other way.
+CACHED=4082
+night_light_put 4082
+ok "the cool end reaches the screen too"     "$(within1 "$SHOWN" 4082)" yes
+ok "without writing past the ceiling"        "$(grep -c '=4083$' "$SETDB")" 0
+# A copy that happens to sit on the neighbour cannot trap it either.
+CACHED=1701
+night_light_put 1700
+ok "a copy one step away is no trap"         "$SHOWN" 1700
+unset -f settings within1
+
 echo "quiet: dnd preference while running"
 # Changing the preference mid-quiet has to act in both directions. Stub the two
 # calls that reach the framework so the bookkeeping is what gets tested.
