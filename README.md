@@ -172,7 +172,7 @@ The scheduler's wake cadence scales with what you have configured: an hour when 
 
 Requires Android 9+ and Magisk 20.4+, KernelSU or APatch. Android 12+ for the dimming feature specifically.
 
-1. Download `LuneBridge-v2.0.4.zip` from Releases.
+1. Download `LuneBridge-v2.0.5.zip` from Releases.
 2. Flash it in Magisk / KernelSU / APatch.
 3. Reboot.
 4. `su -c lunectl status`
@@ -286,7 +286,7 @@ Needs an Android SDK (build-tools + one platform), a JDK, and Python 3.
 ./tools/build.sh
 ```
 
-Produces `dist/LuneBridge-v2.0.4.zip`. The build computes the colour ramp from source and **refuses to continue if the ramp fails its own validation**, so a bad curve can't reach a release.
+Produces `dist/LuneBridge-v2.0.5.zip`. The build computes the colour ramp from source and **refuses to continue if the ramp fails its own validation**, so a bad curve can't reach a release.
 
 The build also runs [`tools/test-core.sh`](tools/test-core.sh) first, which exercises the fixed-point arithmetic the runtime uses. Those tests aren't decoration. They caught a factor-of-ten error in the dimming inversion that made flicker-safe mode deliver 2% when asked for 45%.
 
